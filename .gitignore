@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+data/*.sqlite3
+data/avatars/
+debug_submissions/
+.DS_Store
