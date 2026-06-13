@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secret Student</title>
+    <link rel="stylesheet" href="/game-static/src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section class="game-frame" aria-label="Secret Student game">
+        <div class="screen-stack">
+          <div id="phaserMount" aria-label="Game world"></div>
+          <section id="overlay" class="overlay" aria-live="polite"></section>
+        </div>
+
+        <aside class="side-panel" aria-label="Mission controls">
+          <div class="brand">
+            <p class="label">Secret Student</p>
+            <h1 id="panelTitle">Loading...</h1>
+            <p id="statusText">Checking your secret file.</p>
+          </div>
+
+          <section id="authPanel" class="panel-section">
+            <div class="tabs" role="tablist">
+              <button id="registerTab" type="button" class="tab active">Register</button>
+              <button id="loginTab" type="button" class="tab">Login</button>
+            </div>
+            <form id="authForm" class="stack">
+              <label>
+                Username
+                <input id="usernameInput" autocomplete="username" required minlength="3" />
+              </label>
+              <label>
+                Password
+                <input id="passwordInput" type="password" autocomplete="current-password" required minlength="4" />
+              </label>
+              <label id="levelLabel">
+                Learner level
+                <select id="levelInput">
+                  <option>Preschool</option>
+                  <option selected>Primary school</option>
+                  <option>Middle school</option>
+                  <option>High school</option>
+                  <option>Custom beginner</option>
+                </select>
+              </label>
+              <label id="avatarLabel">
+                Agent photo
+                <input id="avatarInput" type="file" accept="image/*" />
+              </label>
+              <div id="cameraTools" class="camera-tools">
+                <video id="cameraPreview" playsinline muted hidden></video>
+                <canvas id="cameraCanvas" width="320" height="240" hidden></canvas>
+                <button id="startCameraButton" type="button" class="secondary">Use Webcam</button>
+                <button id="captureCameraButton" type="button" class="secondary" hidden>Capture</button>
+              </div>
+              <button id="authSubmitButton" type="submit">Create Agent File</button>
+            </form>
+          </section>
+
+          <section id="worldPanel" class="panel-section" hidden>
+            <div class="info-grid">
+              <span>Agent</span><strong id="agentName">-</strong>
+              <span>Level</span><strong id="agentLevel">-</strong>
+              <span>Mission</span><strong id="activeMission">None yet</strong>
+            </div>
+            <div class="direction-pad" aria-label="Movement controls">
+              <button data-move="up" type="button">Up</button>
+              <button data-move="left" type="button">Left</button>
+              <button data-move="right" type="button">Right</button>
+              <button data-move="down" type="button">Down</button>
+            </div>
+            <button id="interactButton" type="button">Enter</button>
+            <button id="logoutButton" type="button" class="secondary">Logout</button>
+          </section>
+
+          <section id="schoolPanel" class="panel-section" hidden>
+            <form id="lessonForm" class="stack">
+              <label>
+                Today's topic
+                <input id="topicInput" placeholder="decimal addition, fractions, planets" required />
+              </label>
+              <button id="startLessonButton" type="submit">Ask the Teacher</button>
+            </form>
+            <div id="lessonReader" class="stack" hidden>
+              <div class="blackboard">
+                <p class="label">Blackboard</p>
+                <h2 id="lessonStepTitle"></h2>
+                <p id="lessonStepBody"></p>
+                <p id="lessonStepExample"></p>
+              </div>
+              <div class="row">
+                <button id="prevStepButton" type="button" class="secondary">Previous</button>
+                <button id="nextStepButton" type="button">Next</button>
+              </div>
+              <form id="teacherQuestionForm" class="stack">
+                <label>
+                  Ask the teacher
+                  <input id="teacherQuestionInput" placeholder="Why does that work?" />
+                </label>
+                <button type="submit" class="secondary">Ask</button>
+              </form>
+              <p id="teacherAnswer" class="note"></p>
+              <button id="startQuizButton" type="button">Start Mini Quiz</button>
+            </div>
+          </section>
+
+          <section id="homePanel" class="panel-section" hidden>
+            <div class="room-actions">
+              <button id="phoneButton" type="button">Secret Phone</button>
+              <button id="deskButton" type="button">Practice Desk</button>
+              <button id="bedButton" type="button" class="secondary">Rest</button>
+            </div>
+            <div id="phoneDialog" class="dialogue" hidden></div>
+            <div id="practicePanel" class="stack" hidden>
+              <label>
+                Search notes
+                <input id="practiceSearchInput" placeholder="Search lesson or question" />
+              </label>
+              <div id="practiceList" class="practice-list"></div>
+            </div>
+          </section>
+
+          <section id="hqPanel" class="panel-section" hidden>
+            <div class="battle-card">
+              <p class="label">Grandma's House</p>
+              <h2 id="bossName">No boss yet</h2>
+              <p id="bossBriefing">Finish a lesson first, then come here for the mission.</p>
+            </div>
+            <button id="startBossButton" type="button">Start Boss Battle</button>
+          </section>
+
+          <section id="answerPanel" class="panel-section" hidden>
+            <div class="question-card">
+              <p class="label" id="questionModeLabel">Question</p>
+              <h2 id="questionText"></h2>
+              <p id="battleStats"></p>
+            </div>
+            <label>
+              Type answer
+              <input id="answerInput" autocomplete="off" />
+            </label>
+            <div class="notebook-wrap">
+              <canvas id="answerCanvas" width="520" height="300"></canvas>
+            </div>
+            <div class="row">
+              <button id="clearCanvasButton" type="button" class="secondary">Clear</button>
+              <button id="submitAnswerButton" type="button">Submit</button>
+            </div>
+            <p id="feedbackText" class="note"></p>
+          </section>
+        </aside>
+      </section>
+    </main>
+    <script src="/game-static/vendor/phaser.min.js"></script>
+    <script src="/game-static/src/main.js"></script>
+  </body>
+</html>

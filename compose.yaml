@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./debug_submissions:/app/debug_submissions
+
