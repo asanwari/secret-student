@@ -106,20 +106,44 @@ def test_embedded_dual_runtime_configures_independent_models(monkeypatch):
     assert command[command.index("--api-key") + 1] == "vision-key"
 
 
-def test_embedded_commands_prefer_persistent_model_paths():
+def test_embedded_commands_prefer_persistent_model_paths(tmp_path):
+    text_model = tmp_path / "text.gguf"
+    vision_model = tmp_path / "vision.gguf"
+    mmproj = tmp_path / "mmproj.gguf"
+    for path in (text_model, vision_model, mmproj):
+        path.touch()
     settings = Settings(
-        llama_cpp_model_path="/data/models/text.gguf",
-        vision_llama_cpp_model_path="/data/models/vision.gguf",
-        vision_llama_cpp_mmproj_path="/data/models/mmproj.gguf",
+        llama_cpp_model_path=str(text_model),
+        vision_llama_cpp_model_path=str(vision_model),
+        vision_llama_cpp_mmproj_path=str(mmproj),
     )
 
     text_command = build_llama_cpp_command(settings)
     vision_command = build_vision_llama_cpp_command(settings)
 
-    assert text_command[text_command.index("--model") + 1] == "/data/models/text.gguf"
+    assert text_command[text_command.index("--model") + 1] == str(text_model)
     assert "-hf" not in text_command
-    assert vision_command[vision_command.index("--model") + 1] == "/data/models/vision.gguf"
-    assert vision_command[vision_command.index("--mmproj") + 1] == "/data/models/mmproj.gguf"
+    assert vision_command[vision_command.index("--model") + 1] == str(vision_model)
+    assert vision_command[vision_command.index("--mmproj") + 1] == str(mmproj)
+
+
+def test_embedded_commands_fall_back_when_persistent_files_are_missing():
+    settings = Settings(
+        llama_cpp_model_ref="example/text:Q4_K_M",
+        llama_cpp_model_path="/missing/text.gguf",
+        vision_llama_cpp_model_ref="example/vision:Q4_K_M",
+        vision_llama_cpp_model_path="/missing/vision.gguf",
+        vision_llama_cpp_mmproj_path="/missing/mmproj.gguf",
+    )
+
+    text_command = build_llama_cpp_command(settings)
+    vision_command = build_vision_llama_cpp_command(settings)
+
+    assert text_command[text_command.index("-hf") + 1] == "example/text:Q4_K_M"
+    assert vision_command[vision_command.index("-hf") + 1] == "example/vision:Q4_K_M"
+    assert "--model" not in text_command
+    assert "--model" not in vision_command
+    assert "--mmproj" not in vision_command
 
 
 def test_external_vision_defaults_to_generation_endpoint(monkeypatch):

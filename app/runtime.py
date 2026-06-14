@@ -18,7 +18,12 @@ from app.config import Settings, get_settings
 logger = logging.getLogger(__name__)
 
 
+def _existing_model_path(path: str) -> str:
+    return path if path and os.path.isfile(path) else ""
+
+
 def build_llama_cpp_command(settings: Settings) -> list[str]:
+    model_path = _existing_model_path(settings.llama_cpp_model_path)
     command = [
         settings.llama_cpp_server_bin,
         "--host",
@@ -26,8 +31,8 @@ def build_llama_cpp_command(settings: Settings) -> list[str]:
         "--port",
         str(settings.llama_cpp_port),
         *(
-            ["--model", settings.llama_cpp_model_path]
-            if settings.llama_cpp_model_path
+            ["--model", model_path]
+            if model_path
             else ["-hf", settings.llama_cpp_model_ref]
         ),
         "--ctx-size",
@@ -47,6 +52,9 @@ def build_llama_cpp_command(settings: Settings) -> list[str]:
 
 
 def build_vision_llama_cpp_command(settings: Settings) -> list[str]:
+    model_path = _existing_model_path(settings.vision_llama_cpp_model_path)
+    mmproj_path = _existing_model_path(settings.vision_llama_cpp_mmproj_path)
+    use_persistent_files = bool(model_path and mmproj_path)
     command = [
         settings.llama_cpp_server_bin,
         "--host",
@@ -54,8 +62,8 @@ def build_vision_llama_cpp_command(settings: Settings) -> list[str]:
         "--port",
         str(settings.vision_llama_cpp_port),
         *(
-            ["--model", settings.vision_llama_cpp_model_path]
-            if settings.vision_llama_cpp_model_path
+            ["--model", model_path]
+            if use_persistent_files
             else ["-hf", settings.vision_llama_cpp_model_ref]
         ),
         "--ctx-size",
@@ -67,8 +75,8 @@ def build_vision_llama_cpp_command(settings: Settings) -> list[str]:
         "--parallel",
         "1",
     ]
-    if settings.vision_llama_cpp_mmproj_path:
-        command.extend(["--mmproj", settings.vision_llama_cpp_mmproj_path])
+    if use_persistent_files:
+        command.extend(["--mmproj", mmproj_path])
     if settings.vision_llm_api_key:
         command.extend(["--api-key", settings.vision_llm_api_key])
     if settings.vision_llama_cpp_extra_args:
@@ -106,6 +114,12 @@ def wait_for_llama_cpp(
 
 def start_embedded_llama_cpp(settings: Settings) -> subprocess.Popen:
     command = build_llama_cpp_command(settings)
+    if settings.llama_cpp_model_path and "-hf" in command:
+        logger.warning(
+            "Text model file is missing at %s; downloading %s instead.",
+            settings.llama_cpp_model_path,
+            settings.llama_cpp_model_ref,
+        )
     printable = [
         "<redacted>" if part == settings.llama_cpp_api_key else part
         for part in command
@@ -120,6 +134,13 @@ def start_embedded_llama_cpp(settings: Settings) -> subprocess.Popen:
 
 def start_embedded_vision_llama_cpp(settings: Settings) -> subprocess.Popen:
     command = build_vision_llama_cpp_command(settings)
+    if settings.vision_llama_cpp_model_path and "-hf" in command:
+        logger.warning(
+            "Vision model or projector is missing at %s / %s; downloading %s instead.",
+            settings.vision_llama_cpp_model_path,
+            settings.vision_llama_cpp_mmproj_path,
+            settings.vision_llama_cpp_model_ref,
+        )
     printable = [
         "<redacted>" if part == settings.vision_llm_api_key else part
         for part in command
