@@ -161,6 +161,14 @@ uv run python scripts/preload_space_models.py
 
 It downloads to local temporary storage first and then copies completed files
 to `/data/models`, safely resuming by checking existing file sizes.
+All selections can be changed without editing code. The runtime reads
+`LLM_MODEL`, `LLAMA_CPP_MODEL_REF`, `LLAMA_CPP_MODEL_PATH`,
+`VISION_LLM_MODEL`, `VISION_LLAMA_CPP_MODEL_REF`,
+`VISION_LLAMA_CPP_MODEL_PATH`, and `VISION_LLAMA_CPP_MMPROJ_PATH`. The preload
+helper accepts matching CLI options and the `TEXT_MODEL_REPO`,
+`TEXT_MODEL_FILE`, `TEXT_MODEL_DESTINATION`, `VISION_MODEL_REPO`,
+`VISION_MODEL_FILE`, `VISION_MODEL_DESTINATION`, `VISION_MMPROJ_FILE`, and
+`VISION_MMPROJ_DESTINATION` environment variables.
 
 Run `uv run python set_env_for_space.py --runtime embedded_dual_llamacpp` to
 configure both local servers. Use empty `--llama-model-path` and
