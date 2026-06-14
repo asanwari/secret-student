@@ -1,5 +1,4 @@
-ARG LLAMA_CPP_IMAGE=ghcr.io/ggml-org/llama.cpp:server-cuda-b9049
-FROM ${LLAMA_CPP_IMAGE}
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda-b9049
 
 USER root
 RUN apt-get update \
