@@ -9,3 +9,4 @@ debug_submissions/
 .DS_Store
 debug_traces/
 llm_debug_traces/
+artifacts/

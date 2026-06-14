@@ -7,277 +7,226 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: "Retro game: play as a student with a secret identity!"
+short_description: "A Pokemon-inspired, local-first AI school adventure"
+tags:
+  - track:backyard
+  - track:wood
+  - sponsor:openbmb
+  - sponsor:openai
+  - sponsor:nvidia
+  - sponsor:modal
+  - achievement:offgrid
+  - achievement:offbrand
+  - achievement:llama
+  - achievement:sharing
+  - achievement:fieldnotes
 ---
+
+<div align="center">
 
 # Secret Student
 
-Secret Student is a Gradio-hosted retro learning game for the Hugging Face Build Small Hackathon. A player registers as a school kid with a secret identity, learns a topic at school, gets a mission call at home, and fights a boss at `{player_name}'s Grandma's House`.
+### A Pokemon-inspired AI school game built for a niece who loves games and hates school
 
-The app uses a custom Phaser frontend embedded in a Gradio shell, with FastAPI routes for game data and a SQLite database for persistence.
+[![Build Small: Backyard](https://img.shields.io/badge/Build_Small-Backyard_Adventure-6d28d9)](https://huggingface.co/build-small-hackathon)
+[![Build Small: Woods](https://img.shields.io/badge/Build_Small-Deploy_to_the_Woods-166534)](https://huggingface.co/build-small-hackathon)
+[![Live Space](https://img.shields.io/badge/Play-Live_Space-fbbf24?logo=huggingface&logoColor=black)](https://huggingface.co/spaces/asanwari/secret-student)
+[![Source](https://img.shields.io/badge/Source-GitHub-181717?logo=github)](https://github.com/asanwari/secret-student)
+[![llama.cpp](https://img.shields.io/badge/Inference-llama.cpp-2563eb)](https://github.com/ggml-org/llama.cpp)
+
+**Learn at school. Get briefed by Grandma. Defeat a villain with what you learned.**
+
+</div>
+
+Secret Student turns an AI-generated lesson into a retro 2D mission. The player
+is a student by day and a secret agent after class. Lessons become intelligence,
+quizzes become training, and the final assessment becomes a boss battle.
+
+The whole AI stack can run locally through two small GGUF models and llama.cpp.
+There is no required cloud model API, and the custom Phaser interface looks and
+plays like a game rather than a default chatbot.
+
+## Hackathon Submission
+
+Secret Student is submitted to **both** [Build Small](https://huggingface.co/build-small-hackathon)
+tracks:
+
+> [!IMPORTANT]
+> **The working AI demo is the personal NVIDIA-backed Space:**
+> **[asanwari/secret-student](https://huggingface.co/spaces/asanwari/secret-student)**.
+> The required organization submission is
+> **[build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student)**,
+> but that organization Space cannot currently provision a GPU. It mirrors the
+> same source and serves as the official submission artifact; use the personal
+> Space above to test the complete Qwen3 plus MiniCPM-V experience.
+
+| Track | How Secret Student qualifies |
+| --- | --- |
+| **Backyard Adventure** | The [actual public demo](https://huggingface.co/spaces/asanwari/secret-student) runs as a Docker Space on a persistent NVIDIA GPU, with the application and both llama.cpp servers in one deployment. The organization-owned submission mirrors the same code but currently lacks permission to provision GPU hardware. |
+| **Deploy to the Woods** | The text and vision models are small, quantized GGUFs that run on consumer hardware. Each model is well below the track's 32B-parameter ceiling. |
+
+The application can also separate the CPU-hosted game from inference. In
+`external` mode, independent OpenAI-compatible endpoints can be assigned to the
+text and vision roles through `LLM_BASE_URL` and `VISION_LLM_BASE_URL`. The
+included Modal llama.cpp server can therefore be deployed twice, once for
+Qwen3-8B and once for MiniCPM-V, if organization GPU access remains unavailable.
+
+### Submission Links
+
+| Artifact | Link |
+| --- | --- |
+| **Actual GPU demo** | **[Play the complete application at asanwari/secret-student](https://huggingface.co/spaces/asanwari/secret-student)** |
+| Organization submission | [build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student) - repository mirror; organization GPU provisioning is unavailable |
+| Source code | [github.com/asanwari/secret-student](https://github.com/asanwari/secret-student) |
+| Codex development history | [Main commit history](https://github.com/asanwari/secret-student/commits/main/) and [`codex/*` branches](https://github.com/asanwari/secret-student/branches/all) |
+| Field notes | [I Built a Pokemon-Inspired AI School Game for My Niece](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6) |
+| Demo video | **Coming soon: add the public two-minute demo URL here** |
+| LinkedIn post | **Coming soon: add the LinkedIn post URL here** |
+| Open LLM traces | [Secret Student LLM traces on Hugging Face](https://huggingface.co/datasets/asanwari/secret-student-llm-traces) |
+
+> The `achievement:welltuned` tag is intentionally not claimed: the current
+> models are configurable base models, not a fine-tuned model published by this
+> project.
+
+## The Game
+
+1. **Create your agent.** Choose a student name, secret codename, grade, and the
+   hair, shirt, and pants colors for the backpack-wearing character.
+2. **Go to school.** Pick a topic and receive a structured, age-appropriate
+   lesson generated for that student.
+3. **Ask the teacher.** Follow-up chat stays grounded in the current lesson.
+4. **Take the quiz.** Type an answer or draw it in the notebook. Feedback remains
+   visible until the player chooses to continue.
+5. **Return home.** Review material at the desk, then answer the secret phone for
+   a comic-style briefing from the handler known only as **Grandma**.
+6. **Enter headquarters.** Fight a villain by answering harder questions based
+   on the lesson. Correct answers damage the boss; mistakes cost health.
+7. **Start another mission.** Return to the map and learn something new.
+
+<table>
+  <tr>
+    <td width="50%"><img src="frontend/static/assets/classroom-blank.png" alt="Pixel-art Secret Student classroom"></td>
+    <td width="50%"><img src="frontend/static/assets/bedroom-agent.png" alt="Pixel-art Secret Student bedroom"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>School: lessons, teacher chat, and quizzes</strong></td>
+    <td align="center"><strong>Home: review and mission briefings</strong></td>
+  </tr>
+</table>
+
+## Small Models, Separate Jobs
+
+```mermaid
+flowchart LR
+    P[Player] --> UI[Custom Phaser game]
+    UI --> API[FastAPI game API]
+    API --> DB[(SQLite progress)]
+    API -->|Lessons, chat, typed grading| TEXT[Qwen3-8B GGUF]
+    API -->|Handwriting only| VISION[MiniCPM-V 4.5 GGUF]
+    TEXT --> L1[llama.cpp text server]
+    VISION --> L2[llama.cpp vision server]
+    L1 --> TRACE[Validated traces]
+    L2 --> TRACE
+```
+
+One approximately 8B text model handles lesson generation, teacher chat,
+question creation, and typed-answer grading. A separate OpenBMB MiniCPM-V model
+is called only when pixels need to become an answer. Both are quantized and
+served by llama.cpp through OpenAI-compatible local endpoints.
+
+This split keeps the common path fast and leaves vision work to a model designed
+for it. Model repositories, files, ports, context sizes, and GPU layers are all
+environment-configurable; Qwen and MiniCPM-V are defaults, not hard dependencies.
+
+The default pair is comfortable on a 16 GB NVIDIA GPU with conservative context
+settings. Practical consumer options include the RTX 4060 Ti 16 GB, RTX 4070 Ti
+SUPER 16 GB, RTX 4080 16 GB, and RTX 3090/4090 24 GB. Partial CPU offload can
+reduce VRAM requirements at the cost of latency. The hosted demo uses NVIDIA GPU
+infrastructure for additional headroom.
+
+## Reliable Generated Content
+
+The model never writes directly into the game. Secret Student treats every
+completion as untrusted input:
+
+```mermaid
+flowchart LR
+    A[Prompt + JSON Schema] --> B[Model completion]
+    B --> C[Extract and parse JSON]
+    C --> D[Normalize safe aliases]
+    D --> E[Pydantic + content rules]
+    E -->|Valid| F[Persist lesson]
+    E -->|Invalid| G[Repair prompt with exact errors]
+    G --> H[Validate again]
+    H -->|Valid| F
+    H -->|Invalid| I[Fail with trace ID]
+```
+
+The validation layer enforces six to ten progressive lesson steps, a 150-word
+limit per step, concrete expected answers, exact question counts, and no
+references to unavailable maps, images, videos, or worksheets. Common JSON
+formatting damage is repaired locally. Deeper schema or content failures are
+sent back to the model with the exact validation errors for one constrained
+self-correction pass. Only a valid result is saved.
+
+Every model call can produce a durable trace containing timing, parsing,
+normalization, validation, repair, and final status. Secrets are redacted and
+image payloads are replaced with hashes.
+
+## Sponsor Stack
+
+| Sponsor | Role in the project |
+| --- | --- |
+| [![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Inference-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/) | NVIDIA GPU hardware runs the public dual-model Space and CUDA-accelerated llama.cpp. |
+| [![Modal](https://img.shields.io/badge/Modal-Optional_GPU_Deployment-111111)](https://modal.com/) | The repository includes a configurable Modal deployment for an external OpenAI-compatible llama.cpp server with persistent model caching. |
+| [![OpenBMB](https://img.shields.io/badge/OpenBMB-MiniCPM--V-7c3aed)](https://huggingface.co/openbmb) | MiniCPM-V is the vision specialist used to read and grade handwritten answers. |
+| [![OpenAI](https://img.shields.io/badge/OpenAI-Codex_Assisted-000000?logo=openai&logoColor=white)](https://openai.com/codex/) | Codex was the coding collaborator throughout implementation, testing, responsive UI work, model infrastructure, and documentation. The evidence is visible in the public commits and `codex/*` branches. |
+
+## Achievement Evidence
+
+| Achievement | Evidence |
+| --- | --- |
+| **Off the Grid** | Embedded llama.cpp modes run the complete model workflow without a cloud model API. |
+| **Off-Brand** | A custom HTML/CSS/JavaScript and Phaser frontend is hosted through Gradio, with original pixel-art scenes and game controls. |
+| **Llama Champion** | Both text and vision models are served through pinned llama.cpp CUDA images. |
+| **Field Notes** | The public [Medium build report](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6) covers the product idea, architecture, validation, hardware, and lessons learned. |
+| **Sharing is Caring** | The public [Secret Student LLM trace dataset](https://huggingface.co/datasets/asanwari/secret-student-llm-traces) exposes the model-call lifecycle, including validation, repair, timing, and final status. Sensitive values and image payloads are redacted by the application before upload. |
+| **Well-Tuned** | Not claimed. A project-owned fine-tuned model has not been published. |
+
+## Built for the Judging Criteria
+
+- **Technical implementation:** two specialized local models, explicit routing,
+  validated structured generation, model-assisted repair, durable traces,
+  persistence, and responsive desktop/tablet controls.
+- **Model choice and use:** an 8B text model handles language-heavy work while
+  MiniCPM-V is invoked only for handwriting. Game rules remain deterministic
+  application code rather than being delegated to the models.
+- **Creativity:** the lesson, quiz, home briefing, and boss fight form one coherent
+  Pokemon-inspired adventure instead of a chatbot wrapped in educational copy.
 
 ## Run Locally
+
+The fastest local preview uses deterministic mock content:
 
 ```bash
 uv sync
 cp .env.example .env
-LLM_PROVIDER=mock uv run uvicorn main:app --reload --host 0.0.0.0 --port 7860
+LLM_RUNTIME=mock uv run uvicorn main:app --reload --host 0.0.0.0 --port 7860
 ```
 
-Open:
+Open `http://127.0.0.1:7860`.
 
-```text
-http://127.0.0.1:7860
-```
+For the full dual-model setup, Hugging Face Space configuration, Modal
+deployment, model preloading, tracing, API routes, and tests, see
+**[Technical Guide](docs/TECHNICAL.md)**.
 
-To open the game from another device on the same Wi-Fi network, use the
-laptop's local network address instead, for example:
+## Project Links
 
-```text
-http://192.168.1.123:7860
-```
-
-The address may change when the laptop reconnects to Wi-Fi. On macOS, find it
-under System Settings > Wi-Fi > Details > TCP/IP, or run `ifconfig en0`.
-
-Mock mode is fully playable without a model endpoint.
-
-## Model Configuration
-
-Choose the model runtime at application startup:
-
-```text
-LLM_RUNTIME=mock                # no external model; deterministic demo content
-LLM_RUNTIME=external            # Modal or another OpenAI-compatible endpoint
-LLM_RUNTIME=embedded_llamacpp   # llama.cpp runs beside the app in one container
-LLM_RUNTIME=embedded_dual_llamacpp # separate text and vision llama.cpp servers
-```
-
-`LLM_PROVIDER` remains supported for older local `.env` files, but
-`LLM_RUNTIME` takes precedence.
-
-### External Or Modal
-
-The external mode works with Modal, a public llama.cpp server, or another
-OpenAI-compatible chat-completions endpoint:
-
-Nemotron example:
-
-```bash
-LLM_RUNTIME=external
-LLM_BASE_URL=https://your-modal-app.modal.run
-LLM_API_KEY=replace-with-the-model-server-key
-LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
-```
-
-MiniCPM-V 4.6 example, matching the model used during local development:
-
-```bash
-LLM_RUNTIME=external
-LLM_BASE_URL=https://your-public-minicpm-endpoint
-LLM_API_KEY=replace-with-the-model-server-key
-LLM_MODEL=openbmb/MiniCPM-V-4.6
-```
-
-Deploy the included Modal llama.cpp server:
-
-```bash
-uv sync --extra modal
-modal setup
-modal secret create secret-student-llm \
-  LLAMA_ARG_API_KEY=replace-with-a-long-random-key \
-  HF_TOKEN=hf_your_token
-uv run --extra modal modal deploy scripts/deploy_llamacpp_modal.py
-```
-
-The deploy command prints the URL to use as `LLM_BASE_URL`. The Modal script
-defaults to an L40S, persistent model caches, and the pinned
-`ghcr.io/ggml-org/llama.cpp:server-cuda-b9049` image. Override its model or GPU
-with `MODAL_LLAMA_CPP_MODEL_REF` and `MODAL_LLAMA_CPP_GPU` before deployment.
-For MiniCPM-V on Modal, set `MODAL_LLAMA_CPP_MODEL_REF` to a compatible
-MiniCPM-V 4.6 GGUF repository and quantization before running `modal deploy`.
-
-### Embedded llama.cpp
-
-The Docker image contains both Secret Student and `llama-server`. The startup
-supervisor launches and health-checks the model before serving the game:
-
-Nemotron example:
-
-```bash
-LLM_RUNTIME=embedded_llamacpp
-LLAMA_CPP_MODEL_REF=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
-LLAMA_CPP_API_KEY=replace-with-a-long-random-key
-LLAMA_CPP_CTX_SIZE=8192
-LLAMA_CPP_GPU_LAYERS=999
-LLAMA_CPP_STARTUP_TIMEOUT=900
-LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
-```
-
-MiniCPM-V 4.6 example:
-
-```bash
-LLM_RUNTIME=embedded_llamacpp
-LLAMA_CPP_MODEL_REF=your-minicpm-v-4.6-gguf-repository:your-quantization
-LLAMA_CPP_API_KEY=replace-with-a-long-random-key
-LLAMA_CPP_CTX_SIZE=8192
-LLAMA_CPP_GPU_LAYERS=999
-LLM_MODEL=openbmb/MiniCPM-V-4.6
-```
-
-`LLAMA_CPP_MODEL_REF` tells llama.cpp which GGUF package to download.
-`LLM_MODEL` is the model identifier sent in OpenAI-compatible API requests.
-They may differ. For handwritten image verification, the selected MiniCPM-V
-GGUF package must include or reference its multimodal projector and be supported
-by the pinned llama.cpp build.
-
-The Space must use regular GPU hardware for this mode. Hugging Face ZeroGPU is
-available only to Gradio SDK Spaces using dynamically decorated GPU functions;
-it cannot provide a long-lived GPU to this Docker supervisor. Persistent Space
-storage is recommended because model caches live under `/data`.
-
-### Dual-model Space runtime
-
-The recommended L4 configuration uses Qwen3-8B for lesson generation and
-teacher chat, and MiniCPM-V only for handwritten-answer extraction:
-
-```bash
-LLM_RUNTIME=embedded_dual_llamacpp
-LLAMA_CPP_MODEL_PATH=/data/models/qwen3-8b/Qwen3-8B-Q4_K_M.gguf
-VISION_LLAMA_CPP_MODEL_PATH=/data/models/minicpm-v-4_5/MiniCPM-V-4_5-Q4_K_M.gguf
-VISION_LLAMA_CPP_MMPROJ_PATH=/data/models/minicpm-v-4_5/mmproj-model-f16.gguf
-```
-
-Upload those completed files to the mounted bucket once. The runtime reads them
-directly on every restart. Fallback `-hf` downloads use `/tmp/llama.cpp` because
-bucket mounts do not support the atomic cache rename used by llama.cpp.
-
-The preload helper is designed for a Hugging Face Job or another machine where
-the bucket is mounted at `/data`:
-
-```bash
-uv run python scripts/preload_space_models.py
-```
-
-It downloads to local temporary storage first and then copies completed files
-to `/data/models`, safely resuming by checking existing file sizes.
-All selections can be changed without editing code. The runtime reads
-`LLM_MODEL`, `LLAMA_CPP_MODEL_REF`, `LLAMA_CPP_MODEL_PATH`,
-`VISION_LLM_MODEL`, `VISION_LLAMA_CPP_MODEL_REF`,
-`VISION_LLAMA_CPP_MODEL_PATH`, and `VISION_LLAMA_CPP_MMPROJ_PATH`. The preload
-helper accepts matching CLI options and the `TEXT_MODEL_REPO`,
-`TEXT_MODEL_FILE`, `TEXT_MODEL_DESTINATION`, `VISION_MODEL_REPO`,
-`VISION_MODEL_FILE`, `VISION_MODEL_DESTINATION`, `VISION_MMPROJ_FILE`, and
-`VISION_MMPROJ_DESTINATION` environment variables.
-
-Run `uv run python set_env_for_space.py --runtime embedded_dual_llamacpp` to
-configure both local servers. Use empty `--llama-model-path` and
-`--vision-llama-model-path` values only when intentionally using ephemeral
-Hub downloads instead of preloaded bucket files.
-
-For local NVIDIA Docker testing with a separate llama.cpp service:
-
-```bash
-docker compose -f compose.yaml -f compose.llamacpp.yaml up --build
-```
-
-The lesson generator requests structured JSON and parses it into Pydantic classes. Text and numeric answers are checked deterministically first. Drawn answers are sent to the vision model only when the player submits notebook handwriting.
-
-## LLM Traces
-
-Every OpenAI-compatible model call records its request, full response, parse or
-repair step, schema validation, timing, and final status. For local debugging:
-
-```bash
-TRACE_DESTINATION=local
-TRACE_DIR=debug_traces
-```
-
-Failed API responses include a trace ID. Find the matching JSON file under
-`debug_traces/`; malformed model JSON is retained there before any automatic
-repair is attempted. Image data is replaced by a hash and API keys are never
-written to traces.
-
-To publish completed traces to a Hugging Face dataset repository instead:
-
-```bash
-TRACE_DESTINATION=hub
-TRACE_HUB_REPO_ID=your-name/secret-student-traces
-TRACE_HUB_TOKEN=hf_your_write_token
-TRACE_HUB_PRIVATE=true
-TRACE_HUB_INCLUDE_CONTENT=false
-```
-
-Hub traces remove the internal user ID. Prompts and raw completions are also
-removed unless `TRACE_HUB_INCLUDE_CONTENT=true`; review traces carefully before
-enabling that option, especially when testing with real learners.
-
-## Key Routes
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/me`
-- `POST /api/lesson/start`
-- `GET /api/lesson/{lesson_id}`
-- `POST /api/lesson/{lesson_id}/ask`
-- `POST /api/quiz/submit`
-- `POST /api/boss/start`
-- `POST /api/boss/submit`
-- `POST /api/state/location`
-
-## Tests
-
-```bash
-uv run pytest
-```
-
-## Hugging Face Space
-
-This repository is configured as a Docker Space. Set one of the following in
-**Settings > Variables and secrets**.
-
-After a push to the Space's `main` branch, Hugging Face automatically rebuilds
-the Docker image and runs its `CMD`, which starts `python -m app.runtime`. A
-Factory reboot is useful after changing Variables or Secrets.
-
-Modal/external variables:
-
-```text
-LLM_RUNTIME=external
-LLM_BASE_URL=https://your-modal-app.modal.run
-LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
-# Or: openbmb/MiniCPM-V-4.6
-```
-
-Modal/external secrets:
-
-```text
-LLM_API_KEY=your-model-server-key
-APP_SECRET=your-game-session-secret
-```
-
-Embedded variables:
-
-```text
-LLM_RUNTIME=embedded_llamacpp
-LLAMA_CPP_MODEL_REF=your-gguf-repository:quantization
-LLM_MODEL=openbmb/MiniCPM-V-4.6
-LLAMA_CPP_CTX_SIZE=8192
-LLAMA_CPP_GPU_LAYERS=999
-```
-
-Embedded secrets:
-
-```text
-LLAMA_CPP_API_KEY=your-internal-model-key
-HF_TOKEN=your-hugging-face-token
-APP_SECRET=your-game-session-secret
-```
-
-The Space starts through:
-
-```bash
-python -m app.runtime
-```
-
-The Gradio root embeds `/game`, which serves the custom Phaser app. Static files are under `frontend/static`.
+- [Live Hugging Face Space](https://huggingface.co/spaces/asanwari/secret-student)
+- [GitHub source and Codex-assisted history](https://github.com/asanwari/secret-student)
+- [Technical guide](docs/TECHNICAL.md)
+- [Medium field notes](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6)
+- [Public LLM trace dataset](https://huggingface.co/datasets/asanwari/secret-student-llm-traces)
+- [Qwen3-8B GGUF](https://huggingface.co/Qwen/Qwen3-8B-GGUF)
+- [OpenBMB MiniCPM-V 4.5 GGUF](https://huggingface.co/openbmb/MiniCPM-V-4_5-gguf)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp)
