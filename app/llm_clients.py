@@ -185,19 +185,31 @@ class OpenAICompatibleLLMClient(LLMClient):
             "Create a coherent teaching sequence: introduction, core explanation, guided example, deeper practice, recap, then quiz preparation. "
             "Each step's body plus example must be substantial but concise, usually 60 to 120 words and never more than 150 words, with vocabulary and examples appropriate for the learner level. "
             "The experience is text-only: never tell the learner to look at or use an image, map, chart, diagram, video, worksheet, book, object, or other material that is not included in the step text. "
+            "Write the actual lesson directly to the student, not instructions for a teacher or content author. Do not mention learners, partners, friends, visual aids, hands-on materials, the JSON format, answer types, quizzes, or boss missions inside lesson steps. Every lesson step must have a distinct title and distinct content. "
             "Every quiz and boss question must be answerable from the lesson. Prefer numeric answers or short canonical text answers whenever the topic permits; never ask for opinions, drawings, visual identification, or open-ended discussion. "
+            "For numeric questions, expected_answer and every acceptable answer must be plain numeric values, not equations or words. Quiz difficulty must be easy or medium; every boss question difficulty must be hard. Do not repeat or lightly reword a question. Respect limits stated in the topic. "
             f"Create 6 to 10 lesson steps, exactly {quiz_count} quiz questions, and exactly {boss_count} harder boss questions. "
             f"Topic: {topic}. Learner level: {learner_level}."
         )
 
         def validate_package(value: dict) -> dict:
             package = LessonPackage.model_validate(_ensure_question_ids(value))
-            _validate_lesson_counts(package, quiz_count, boss_count)
+            _validate_lesson_counts(package, quiz_count, boss_count, topic)
             return package.model_dump()
+
+        addition_fallback = _build_addition_fallback(
+            topic, learner_level, quiz_count, boss_count
+        )
+        max_repair_attempts = 1 if addition_fallback is not None else 3
+        repair_attempts = 0
 
         async def repair_invalid_package(
             invalid_data: dict, validation_error: Exception
         ) -> dict:
+            nonlocal repair_attempts
+            repair_attempts += 1
+            if repair_attempts > max_repair_attempts:
+                raise validation_error
             compact_errors = (
                 validation_error.errors(include_url=False, include_input=False)
                 if isinstance(validation_error, ValidationError)
@@ -209,6 +221,8 @@ class OpenAICompatibleLLMClient(LLMClient):
                 f"Return exactly {quiz_count} quiz questions and exactly {boss_count} boss questions. "
                 "Do not leave any question without an answer_type and expected_answer. "
                 "Keep a coherent teaching sequence, keep every step at 150 words or fewer, remove references to unavailable media or materials, and make every question concrete and answerable from the lesson. "
+                "Remove duplicate or meta-instruction lesson steps, stray punctuation, partner or visual-aid activities, equations masquerading as numeric answers, repeated questions, and non-hard boss questions. Write actual teaching content directly to the student. "
+                "If many fields are invalid, rewrite the package from scratch instead of preserving the bad structure. Check every arithmetic result yourself before responding. "
                 f"Validation errors: {json.dumps(compact_errors, ensure_ascii=True)}. "
                 f"Invalid JSON: {json.dumps(invalid_data, ensure_ascii=True)}"
             )
@@ -232,27 +246,36 @@ class OpenAICompatibleLLMClient(LLMClient):
                     value, quiz_count, boss_count
                 ),
                 validator=validate_package,
+                repairer=repair_invalid_package,
             )
 
-        data = await self._chat_json(
-            [
-                {
-                    "role": "system",
-                    "content": "You create child-friendly lessons for a retro secret-agent school game.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            max_tokens=5000,
-            log_label="generate_lesson_package",
-            trace_context=trace_context,
-            enable_thinking=False,
-            response_format=_lesson_response_format(quiz_count, boss_count),
-            normalizer=lambda value: _normalize_lesson_package(
-                value, quiz_count, boss_count
-            ),
-            validator=validate_package,
-            repairer=repair_invalid_package,
-        )
+        try:
+            data = await self._chat_json(
+                [
+                    {
+                        "role": "system",
+                        "content": "You create child-friendly lessons for a retro secret-agent school game.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=5000,
+                log_label="generate_lesson_package",
+                trace_context=trace_context,
+                enable_thinking=False,
+                response_format=_lesson_response_format(quiz_count, boss_count),
+                normalizer=lambda value: _normalize_lesson_package(
+                    value, quiz_count, boss_count
+                ),
+                validator=validate_package,
+                repairer=repair_invalid_package,
+            )
+        except LLMTraceError:
+            if addition_fallback is None:
+                raise
+            logger.warning(
+                "Using validated deterministic addition fallback after model quality checks failed."
+            )
+            return addition_fallback
         normalized = _ensure_question_ids(data)
         return LessonPackage.model_validate(normalized)
 
@@ -475,6 +498,109 @@ def _mock_question(topic: str, index: int, difficulty: str) -> Question:
     )
 
 
+def _build_addition_fallback(
+    topic: str, learner_level: str, quiz_count: int, boss_count: int
+) -> LessonPackage | None:
+    if not re.search(r"\b(?:add|adding|addition|sum|sums)\b", topic.lower()):
+        return None
+    limit = int(_requested_numeric_limit(topic) or 20)
+    limit = max(4, min(limit, 100))
+    steps = [
+        LessonStep(
+            title="What addition means",
+            body=(
+                "Addition combines two amounts into one total. The plus sign tells you to join the amounts. "
+                "The number after the equals sign is the sum. Read 3 + 2 = 5 as: three plus two equals five."
+            ),
+            example="Begin with 3. Count forward two more numbers: 4, 5. Therefore, 3 + 2 = 5.",
+        ),
+        LessonStep(
+            title="Count on from the larger number",
+            body=(
+                "You can add efficiently by starting with the larger addend and counting forward by the smaller addend. "
+                "This gives the same sum while reducing the number of counting steps."
+            ),
+            example="For 2 + 6, begin at 6 and count forward twice: 7, 8. The sum is 8.",
+        ),
+        LessonStep(
+            title="Use number partners",
+            body=(
+                f"Number partners are pairs that make the same total. For sums no greater than {limit}, remembering useful pairs makes addition faster. "
+                "Pairs can appear in either order because changing the order does not change the sum."
+            ),
+            example="The partners 4 and 6 make 10. Both 4 + 6 and 6 + 4 equal 10.",
+        ),
+        LessonStep(
+            title="Break a number into parts",
+            body=(
+                "When an addition fact feels difficult, split one addend into smaller parts. Add one part first, then add the remaining part. "
+                "The final total stays the same because every part is still included."
+            ),
+            example="For 5 + 4, split 4 into 2 + 2. Then 5 + 2 = 7, and 7 + 2 = 9.",
+        ),
+        LessonStep(
+            title="Check the total",
+            body=(
+                "Check an addition answer by counting forward again or by reversing the addends. A correct method should give the same total both times. "
+                f"Also confirm that the result follows this mission's limit of {limit}."
+            ),
+            example="To check 7 + 3 = 10, calculate 3 + 7. It also equals 10, so the answer is consistent.",
+        ),
+        LessonStep(
+            title="Mission recap",
+            body=(
+                "Addition joins amounts. Start with the larger addend, count forward, use remembered number partners, or split an addend into parts. "
+                "Finish by checking the sum and making sure it answers the exact problem."
+            ),
+            example="For 6 + 3, count 7, 8, 9. Reverse it as 3 + 6 to confirm that the sum is 9.",
+        ),
+    ]
+    pairs = [
+        (left, total - left)
+        for total in range(3, limit + 1)
+        for left in range(1, (total // 2) + 1)
+    ]
+    needed = quiz_count + boss_count
+    if len(pairs) < needed:
+        return None
+    if needed == 1:
+        selected = [pairs[-1]]
+    else:
+        selected = [
+            pairs[round(index * (len(pairs) - 1) / (needed - 1))]
+            for index in range(needed)
+        ]
+
+    def make_question(left: int, right: int, index: int, difficulty: str) -> Question:
+        total = left + right
+        return Question(
+            id=f"fallback-{difficulty}-{index}",
+            question=f"What is {left} + {right}?",
+            answer_type="numeric",
+            expected_answer=str(total),
+            acceptable_answers=[str(total)],
+            rubric=f"Accept the numeric total {total}.",
+            difficulty=difficulty,
+            explanation=f"Start at {max(left, right)} and count forward {min(left, right)} to reach {total}.",
+        )
+
+    quiz_pairs = selected[:quiz_count]
+    boss_pairs = selected[quiz_count:]
+    quiz = [make_question(left, right, index, "easy" if index == 1 else "medium") for index, (left, right) in enumerate(quiz_pairs, 1)]
+    boss_questions = [make_question(left, right, index, "hard") for index, (left, right) in enumerate(boss_pairs, 1)]
+    return LessonPackage(
+        topic=topic.strip(),
+        learner_level=learner_level,
+        lesson_steps=steps,
+        quiz_questions=quiz,
+        boss_mission=BossMission(
+            boss_name="The Number Scrambler",
+            briefing=f"Restore the addition codes by solving every sum without going above {limit}.",
+            questions=boss_questions,
+        ),
+    )
+
+
 def _boss_name(topic: str) -> str:
     clean = re.sub(r"[^A-Za-z0-9 ]", "", topic).strip().title() or "Mystery"
     return f"The {clean} Phantom"
@@ -516,7 +642,10 @@ def _validate_verification_payload(data: dict) -> dict:
 
 
 def _validate_lesson_counts(
-    package: LessonPackage, quiz_count: int, boss_count: int
+    package: LessonPackage,
+    quiz_count: int,
+    boss_count: int,
+    requested_topic: str | None = None,
 ) -> None:
     errors: list[str] = []
     if not 6 <= len(package.lesson_steps) <= 10:
@@ -536,7 +665,18 @@ def _validate_lesson_counts(
     unavailable_patterns = (
         r"\b(?:look at|study|inspect|use|refer to|based on) (?:the |this |a )?(?:image|picture|map|chart|diagram|video|worksheet|book|object)\b",
         r"\b(?:shown|pictured|illustrated) (?:above|below|here)\b",
+        r"\b(?:visual aid|hands-on|partner|friends?|classmate|if possible)\b",
     )
+    meta_patterns = (
+        r"\b(?:young )?learners?\b",
+        r"\b(?:the )?boss will\b",
+        r"\bprepare for (?:a|the) quiz\b",
+        r"\btype (?:numeric|text)\b",
+        r"\b(?:keep|make) it simple\b",
+        r"\bfocus on (?:clear|accuracy|understanding)\b",
+    )
+    seen_steps: set[str] = set()
+    seen_titles: set[str] = set()
     for index, step in enumerate(package.lesson_steps):
         word_count = len(re.findall(r"\b[\w'-]+\b", f"{step.body} {step.example}"))
         if word_count > 150:
@@ -544,10 +684,27 @@ def _validate_lesson_counts(
         content = f"{step.body} {step.example}".lower()
         if any(re.search(pattern, content) for pattern in unavailable_patterns):
             errors.append(f"lesson_steps[{index}] references unavailable media or materials")
+        if any(re.search(pattern, content) for pattern in meta_patterns):
+            errors.append(f"lesson_steps[{index}] contains author-facing or game-meta instructions")
+        if "}" in content or "{" in content:
+            errors.append(f"lesson_steps[{index}] contains stray JSON punctuation")
+        fingerprint = re.sub(r"\W+", " ", content).strip()
+        title_key = re.sub(r"\W+", " ", step.title.lower()).strip()
+        if re.search(r"\b(?:quiz|boss mission|boss battle|answer type|json)\b", title_key):
+            errors.append(f"lesson_steps[{index}] uses a quiz, boss, or format label as a lesson title")
+        if fingerprint in seen_steps:
+            errors.append(f"lesson_steps[{index}] duplicates an earlier lesson step")
+        if title_key in seen_titles:
+            errors.append(f"lesson_steps[{index}] repeats an earlier title")
+        seen_steps.add(fingerprint)
+        seen_titles.add(title_key)
     vague_stems = ("what do you think", "how do you feel", "discuss ", "draw ", "look at ")
-    for path, questions in (
-        ("quiz_questions", package.quiz_questions),
-        ("boss_mission.questions", package.boss_mission.questions),
+    seen_questions: set[str] = set()
+    seen_arithmetic: set[tuple[str, float, float]] = set()
+    requested_limit = _requested_numeric_limit(requested_topic or "")
+    for path, questions, allowed_difficulties in (
+        ("quiz_questions", package.quiz_questions, {"easy", "medium"}),
+        ("boss_mission.questions", package.boss_mission.questions, {"hard"}),
     ):
         for index, question in enumerate(questions):
             lowered = question.question.strip().lower()
@@ -555,8 +712,90 @@ def _validate_lesson_counts(
                 errors.append(f"{path}[{index}] is not a concrete text-only question")
             if question.answer_type == "text" and len(question.expected_answer.split()) > 20:
                 errors.append(f"{path}[{index}] expected text answer is not short and canonical")
+            if question.difficulty not in allowed_difficulties:
+                errors.append(f"{path}[{index}] has invalid difficulty {question.difficulty!r}")
+            if question.answer_type == "numeric":
+                for answer in [question.expected_answer, *question.acceptable_answers]:
+                    try:
+                        float(answer.replace(",", "."))
+                    except ValueError:
+                        errors.append(f"{path}[{index}] has nonnumeric answer {answer!r}")
+                        break
+                arithmetic = _parse_arithmetic_question(question.question)
+                if arithmetic is not None:
+                    operation, left, right, calculated = arithmetic
+                    for answer in [question.expected_answer, *question.acceptable_answers]:
+                        try:
+                            numeric_answer = float(answer.replace(",", "."))
+                        except ValueError:
+                            continue
+                        if abs(numeric_answer - calculated) >= 0.0001:
+                            errors.append(
+                                f"{path}[{index}] answer {answer!r} contradicts the arithmetic result {calculated:g}"
+                            )
+                    signature = (operation, min(left, right), max(left, right))
+                    if signature in seen_arithmetic:
+                        errors.append(f"{path}[{index}] repeats an earlier arithmetic problem")
+                    seen_arithmetic.add(signature)
+                    if requested_limit is not None and calculated > requested_limit:
+                        errors.append(
+                            f"{path}[{index}] result {calculated:g} exceeds requested limit {requested_limit:g}"
+                        )
+            question_key = re.sub(r"\W+", " ", lowered).strip()
+            if question_key in seen_questions:
+                errors.append(f"{path}[{index}] duplicates an earlier question")
+            seen_questions.add(question_key)
     if errors:
         raise ValueError("; ".join(errors))
+
+
+def _requested_numeric_limit(topic: str) -> float | None:
+    lowered = topic.lower()
+    if not re.search(r"\b(?:under|up to|within|no greater than|at most)\b", lowered):
+        return None
+    number_words = {
+        "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        "eleven": 11, "twelve": 12, "twenty": 20, "fifty": 50, "hundred": 100,
+    }
+    digit_match = re.search(r"\b(\d+(?:\.\d+)?)\b", lowered)
+    if digit_match:
+        return float(digit_match.group(1))
+    for word, value in number_words.items():
+        if re.search(rf"\b{word}\b", lowered):
+            return float(value)
+    return None
+
+
+def _parse_arithmetic_question(text: str) -> tuple[str, float, float, float] | None:
+    lowered = text.lower().replace(",", "")
+    number = r"(-?\d+(?:\.\d+)?)"
+    patterns = (
+        ("add", rf"(?:sum of|add)\s+{number}\s+(?:and|to)\s+{number}"),
+        ("add", rf"{number}\s*(?:\+|plus)\s*{number}"),
+        ("subtract", rf"(?:difference between|subtract)\s+{number}\s+(?:and|from)\s+{number}"),
+        ("subtract", rf"{number}\s*(?:-|minus)\s*{number}"),
+        ("multiply", rf"(?:product of|multiply)\s+{number}\s+(?:and|by)\s+{number}"),
+        ("multiply", rf"{number}\s*(?:\*|x|times)\s*{number}"),
+        ("divide", rf"{number}\s*(?:/|divided by)\s*{number}"),
+    )
+    for operation, pattern in patterns:
+        match = re.search(pattern, lowered)
+        if not match:
+            continue
+        left, right = float(match.group(1)), float(match.group(2))
+        if operation == "add":
+            result = left + right
+        elif operation == "subtract":
+            result = left - right
+        elif operation == "multiply":
+            result = left * right
+        else:
+            if right == 0:
+                return None
+            result = left / right
+        return operation, left, right, result
+    return None
 
 
 def _normalize_lesson_package(
