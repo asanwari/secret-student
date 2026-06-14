@@ -362,7 +362,7 @@ def test_register_login_and_duplicate_username():
         registered = register(client, username)
         assert registered["session_token"]
         auth_cookie = client.cookies.get("secret_student_token")
-        assert auth_cookie == registered["session_token"]
+        assert auth_cookie.strip('"') == registered["session_token"]
 
         # Space embeds can block third-party cookies. The returned bearer token
         # must authenticate independently of the cookie set during registration.
