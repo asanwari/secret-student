@@ -7,153 +7,183 @@
     <link rel="stylesheet" href="/game-static/src/styles.css" />
   </head>
   <body>
-    <main id="app">
-      <section class="game-frame" aria-label="Secret Student game">
-        <div class="screen-stack">
-          <div id="phaserMount" aria-label="Game world"></div>
-          <section id="overlay" class="overlay" aria-live="polite"></section>
+    <main id="app" class="game-app">
+      <section id="screen-auth" class="game-screen auth-screen" data-screen="auth">
+        <div class="auth-backdrop" aria-hidden="true">
+          <div class="school-silhouette"></div>
+          <div class="agent-beam"></div>
         </div>
-
-        <aside class="side-panel" aria-label="Mission controls">
-          <div class="brand">
-            <p class="label">Secret Student</p>
-            <h1 id="panelTitle">Loading...</h1>
-            <p id="statusText">Checking your secret file.</p>
+        <article class="auth-card">
+          <header class="auth-heading">
+            <p class="eyebrow">Classified student file</p>
+            <h1>Secret Student</h1>
+            <p>School by day. World-saving homework by night.</p>
+          </header>
+          <div class="auth-tabs" role="tablist">
+            <button id="registerTab" type="button" class="tab active">New Agent</button>
+            <button id="loginTab" type="button" class="tab">Returning Agent</button>
           </div>
-
-          <section id="authPanel" class="panel-section">
-            <div class="tabs" role="tablist">
-              <button id="registerTab" type="button" class="tab active">Register</button>
-              <button id="loginTab" type="button" class="tab">Login</button>
-            </div>
-            <form id="authForm" class="stack">
-              <label>
-                Username
-                <input id="usernameInput" autocomplete="username" required minlength="3" />
-              </label>
-              <label>
-                Password
-                <input id="passwordInput" type="password" autocomplete="current-password" required minlength="4" />
-              </label>
-              <label id="levelLabel">
-                Learner level
-                <select id="levelInput">
-                  <option>Preschool</option>
-                  <option selected>Primary school</option>
-                  <option>Middle school</option>
-                  <option>High school</option>
-                  <option>Custom beginner</option>
-                </select>
-              </label>
-              <label id="avatarLabel">
-                Agent photo
-                <input id="avatarInput" type="file" accept="image/*" />
-              </label>
-              <div id="cameraTools" class="camera-tools">
-                <video id="cameraPreview" playsinline muted hidden></video>
-                <canvas id="cameraCanvas" width="320" height="240" hidden></canvas>
-                <button id="startCameraButton" type="button" class="secondary">Use Webcam</button>
-                <button id="captureCameraButton" type="button" class="secondary" hidden>Capture</button>
-              </div>
-              <button id="authSubmitButton" type="submit">Create Agent File</button>
-            </form>
-          </section>
-
-          <section id="worldPanel" class="panel-section" hidden>
-            <div class="info-grid">
-              <span>Agent</span><strong id="agentName">-</strong>
-              <span>Level</span><strong id="agentLevel">-</strong>
-              <span>Mission</span><strong id="activeMission">None yet</strong>
-            </div>
-            <div class="direction-pad" aria-label="Movement controls">
-              <button data-move="up" type="button">Up</button>
-              <button data-move="left" type="button">Left</button>
-              <button data-move="right" type="button">Right</button>
-              <button data-move="down" type="button">Down</button>
-            </div>
-            <button id="interactButton" type="button">Enter</button>
-            <button id="logoutButton" type="button" class="secondary">Logout</button>
-          </section>
-
-          <section id="schoolPanel" class="panel-section" hidden>
-            <form id="lessonForm" class="stack">
-              <label>
-                Today's topic
-                <input id="topicInput" placeholder="decimal addition, fractions, planets" required />
-              </label>
-              <button id="startLessonButton" type="submit">Ask the Teacher</button>
-            </form>
-            <div id="lessonReader" class="stack" hidden>
-              <div class="blackboard">
-                <p class="label">Blackboard</p>
-                <h2 id="lessonStepTitle"></h2>
-                <p id="lessonStepBody"></p>
-                <p id="lessonStepExample"></p>
-              </div>
-              <div class="row">
-                <button id="prevStepButton" type="button" class="secondary">Previous</button>
-                <button id="nextStepButton" type="button">Next</button>
-              </div>
-              <form id="teacherQuestionForm" class="stack">
-                <label>
-                  Ask the teacher
-                  <input id="teacherQuestionInput" placeholder="Why does that work?" />
-                </label>
-                <button type="submit" class="secondary">Ask</button>
-              </form>
-              <p id="teacherAnswer" class="note"></p>
-              <button id="startQuizButton" type="button">Start Mini Quiz</button>
-            </div>
-          </section>
-
-          <section id="homePanel" class="panel-section" hidden>
-            <div class="room-actions">
-              <button id="phoneButton" type="button">Secret Phone</button>
-              <button id="deskButton" type="button">Practice Desk</button>
-              <button id="bedButton" type="button" class="secondary">Rest</button>
-            </div>
-            <div id="phoneDialog" class="dialogue" hidden></div>
-            <div id="practicePanel" class="stack" hidden>
-              <label>
-                Search notes
-                <input id="practiceSearchInput" placeholder="Search lesson or question" />
-              </label>
-              <div id="practiceList" class="practice-list"></div>
-            </div>
-          </section>
-
-          <section id="hqPanel" class="panel-section" hidden>
-            <div class="battle-card">
-              <p class="label">Grandma's House</p>
-              <h2 id="bossName">No boss yet</h2>
-              <p id="bossBriefing">Finish a lesson first, then come here for the mission.</p>
-            </div>
-            <button id="startBossButton" type="button">Start Boss Battle</button>
-          </section>
-
-          <section id="answerPanel" class="panel-section" hidden>
-            <div class="question-card">
-              <p class="label" id="questionModeLabel">Question</p>
-              <h2 id="questionText"></h2>
-              <p id="battleStats"></p>
-            </div>
-            <label>
-              Type answer
-              <input id="answerInput" autocomplete="off" />
+          <form id="authForm" class="form-stack">
+            <label>Username<input id="usernameInput" autocomplete="username" required minlength="3" /></label>
+            <label>Password<input id="passwordInput" type="password" autocomplete="current-password" required minlength="4" /></label>
+            <label id="levelLabel">School level
+              <select id="levelInput">
+                <option>Preschool</option><option selected>Primary school</option>
+                <option>Middle school</option><option>High school</option><option>Custom beginner</option>
+              </select>
             </label>
-            <div class="notebook-wrap">
-              <canvas id="answerCanvas" width="520" height="300"></canvas>
+            <label id="avatarLabel">Agent photo<input id="avatarInput" type="file" accept="image/*" /></label>
+            <div id="cameraTools" class="camera-tools">
+              <video id="cameraPreview" playsinline muted hidden></video>
+              <canvas id="cameraCanvas" width="320" height="240" hidden></canvas>
+              <div class="button-row">
+                <button id="startCameraButton" type="button" class="button secondary">Use Webcam</button>
+                <button id="captureCameraButton" type="button" class="button secondary" hidden>Capture</button>
+              </div>
             </div>
-            <div class="row">
-              <button id="clearCanvasButton" type="button" class="secondary">Clear</button>
-              <button id="submitAnswerButton" type="button">Submit</button>
-            </div>
-            <p id="feedbackText" class="note"></p>
-          </section>
-        </aside>
+            <button id="authSubmitButton" type="submit" class="button primary">Create Agent File</button>
+          </form>
+          <p id="authStatus" class="status-line" role="status"></p>
+        </article>
       </section>
+
+      <section id="screen-onboarding" class="game-screen onboarding-screen" data-screen="onboarding" hidden>
+        <div class="grandma-portrait" aria-hidden="true"><span>G</span></div>
+        <div class="dialogue-box">
+          <p class="eyebrow">Incoming encrypted message</p>
+          <h2>Codename Grandma</h2>
+          <p id="onboardingText">Listen closely, agent.</p>
+          <button id="continueOnboardingButton" type="button" class="button primary">Continue</button>
+        </div>
+      </section>
+
+      <section id="screen-world" class="game-screen world-screen" data-screen="world" hidden>
+        <div id="worldMount" class="world-canvas" aria-label="Secret Student world map"></div>
+        <header class="world-hud">
+          <div><span class="hud-label">Agent</span><strong id="agentName">-</strong></div>
+          <div><span class="hud-label">Mission</span><strong id="activeMission">Find a lesson</strong></div>
+          <button id="logoutButton" type="button" class="icon-button" title="Logout" aria-label="Logout">X</button>
+        </header>
+        <div id="worldPrompt" class="world-prompt">Walk to a building.</div>
+        <div class="world-controls" aria-label="Touch movement controls">
+          <button data-move="up" type="button" aria-label="Move up">Up</button>
+          <button data-move="left" type="button" aria-label="Move left">Left</button>
+          <button id="interactButton" type="button" class="interact" disabled>Enter</button>
+          <button data-move="right" type="button" aria-label="Move right">Right</button>
+          <button data-move="down" type="button" aria-label="Move down">Down</button>
+        </div>
+      </section>
+
+      <section id="screen-school" class="game-screen school-screen" data-screen="school" hidden>
+        <button class="back-button" data-back-to-world type="button">Back to Map</button>
+        <div class="school-board-ui">
+          <form id="lessonForm" class="topic-form">
+            <p class="eyebrow">Today's class</p>
+            <h2>What should we investigate?</h2>
+            <label>Topic<input id="topicInput" placeholder="Decimal addition, planets, poetry" required /></label>
+            <button id="startLessonButton" type="submit" class="button chalk">Prepare Lesson</button>
+          </form>
+          <div id="lessonReader" class="lesson-reader" hidden>
+            <div class="board-heading">
+              <span id="lessonProgress">Lesson 1/1</span>
+              <h2 id="lessonStepTitle"></h2>
+            </div>
+            <p id="lessonStepBody"></p>
+            <p id="lessonStepExample" class="chalk-note"></p>
+            <div class="button-row board-actions">
+              <button id="prevStepButton" type="button" class="button chalk-secondary">Previous</button>
+              <button id="nextStepButton" type="button" class="button chalk">Next</button>
+            </div>
+            <form id="teacherQuestionForm" class="teacher-question">
+              <label>Ask the teacher<input id="teacherQuestionInput" placeholder="Why does that work?" /></label>
+              <button type="submit" class="button chalk-secondary">Ask</button>
+            </form>
+            <div class="button-row">
+              <button id="newTopicButton" type="button" class="button chalk-secondary">Choose New Topic</button>
+              <button id="startQuizButton" type="button" class="button quiz-button">Open Notebook Quiz</button>
+            </div>
+          </div>
+        </div>
+        <aside id="teacherChat" class="teacher-chat" aria-live="polite" hidden>
+          <header class="teacher-chat-header">
+            <div><p class="eyebrow">Teacher chat</p><strong>Keep asking</strong></div>
+            <button id="closeTeacherChat" type="button" class="dialog-close" aria-label="Close teacher chat">X</button>
+          </header>
+          <div id="teacherChatMessages" class="teacher-chat-messages"></div>
+          <form id="teacherFollowupForm" class="teacher-followup-form">
+            <label>Follow-up question<input id="teacherFollowupInput" placeholder="Can you give another example?" /></label>
+            <button type="submit" class="button primary">Send</button>
+          </form>
+        </aside>
+        <p id="schoolStatus" class="scene-status" role="status"></p>
+      </section>
+
+      <section id="screen-home" class="game-screen home-screen" data-screen="home" hidden>
+        <button class="back-button" data-back-to-world type="button">Back to Map</button>
+        <header class="scene-title"><p class="eyebrow">Home base</p><h2>Your Bedroom</h2></header>
+        <div class="bedroom-window" aria-hidden="true"><div class="moon"></div></div>
+        <button id="bedButton" class="room-object bed-object" type="button"><span>Rest</span></button>
+        <button id="phoneButton" class="room-object phone-object" type="button"><span>Secret Phone</span></button>
+        <button id="deskButton" class="room-object desk-object" type="button"><span>Practice Desk</span></button>
+        <div id="homeDialog" class="room-dialog" hidden>
+          <button id="closeHomeDialog" class="dialog-close" type="button" aria-label="Close">X</button>
+          <div id="phoneDialog" hidden></div>
+          <div id="practicePanel" hidden>
+            <label>Search notes<input id="practiceSearchInput" placeholder="Search lessons and questions" /></label>
+            <div id="practiceList" class="practice-list"></div>
+          </div>
+        </div>
+        <p id="homeStatus" class="scene-status" role="status">Click an object in your room.</p>
+      </section>
+
+      <section id="screen-hq" class="game-screen hq-screen" data-screen="hq" hidden>
+        <button class="back-button" data-back-to-world type="button">Back to Map</button>
+        <header class="scene-title light"><p class="eyebrow">Definitely just Grandma's house</p><h2>Secret Headquarters</h2></header>
+        <div class="hq-console">
+          <div class="console-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <p class="eyebrow">Mission target</p>
+          <h2 id="bossName">No boss detected</h2>
+          <p id="bossBriefing">Complete a lesson before opening the vault.</p>
+          <button id="startBossButton" type="button" class="button danger">Begin Mission</button>
+        </div>
+        <div class="grandma-chair" aria-hidden="true"></div>
+      </section>
+
+      <section id="screen-quiz" class="game-screen answer-screen quiz-screen" data-screen="quiz" hidden>
+        <button class="back-button dark" data-answer-exit type="button">Leave Quiz</button>
+        <div class="notebook-page">
+          <header><p class="eyebrow">School notebook</p><h2 id="quizQuestionText"></h2></header>
+          <label>Type your answer<input id="quizAnswerInput" autocomplete="off" /></label>
+          <canvas id="quizCanvas" width="720" height="330"></canvas>
+          <div class="button-row">
+            <button id="clearQuizCanvasButton" type="button" class="button secondary">Clear</button>
+            <button id="submitQuizAnswerButton" type="button" class="button primary">Submit Answer</button>
+          </div>
+          <p id="quizFeedback" class="feedback-line"></p>
+        </div>
+      </section>
+
+      <section id="screen-boss" class="game-screen answer-screen boss-screen" data-screen="boss" hidden>
+        <button class="back-button dark" data-answer-exit type="button">Retreat</button>
+        <div class="boss-stage">
+          <div class="boss-silhouette" aria-hidden="true"><span>?</span></div>
+          <div class="battle-header"><p class="eyebrow">Boss battle</p><h2 id="battleBossName">Unknown Boss</h2><p id="battleStats"></p></div>
+        </div>
+        <div class="battle-console">
+          <h2 id="bossQuestionText"></h2>
+          <label>Transmit answer<input id="bossAnswerInput" autocomplete="off" /></label>
+          <canvas id="bossCanvas" width="720" height="250"></canvas>
+          <div class="button-row">
+            <button id="clearBossCanvasButton" type="button" class="button secondary">Clear</button>
+            <button id="submitBossAnswerButton" type="button" class="button danger">Attack</button>
+          </div>
+          <p id="bossFeedback" class="feedback-line"></p>
+        </div>
+      </section>
+
+      <div id="loadingCurtain" class="loading-curtain" hidden><div class="loader"></div><p id="loadingText">Loading...</p></div>
     </main>
     <script src="/game-static/vendor/phaser.min.js"></script>
-    <script src="/game-static/src/main.js"></script>
+    <script type="module" src="/game-static/src/main.js"></script>
   </body>
 </html>
