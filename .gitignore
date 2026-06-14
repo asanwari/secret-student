@@ -7,3 +7,5 @@ data/*.sqlite3
 data/avatars/
 debug_submissions/
 .DS_Store
+debug_traces/
+llm_debug_traces/
