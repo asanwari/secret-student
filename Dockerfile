@@ -21,9 +21,9 @@ ENV HOST=0.0.0.0 \
     LLAMA_CPP_SERVER_BIN=/app/llama-server \
     HF_XET_HIGH_PERFORMANCE=1 \
     HF_HOME=/data/huggingface \
-    LLAMA_CACHE=/data/llama.cpp
+    LLAMA_CACHE=/tmp/llama.cpp
 
 # The llama.cpp image normally launches llama-server directly. Secret Student's
-# supervisor starts it only when LLM_RUNTIME=embedded_llamacpp, then starts Uvicorn.
+# supervisor starts one or two servers for embedded runtimes, then starts Uvicorn.
 ENTRYPOINT []
 CMD ["python", "-m", "app.runtime"]

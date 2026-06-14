@@ -25,8 +25,11 @@ def build_llama_cpp_command(settings: Settings) -> list[str]:
         settings.llama_cpp_host,
         "--port",
         str(settings.llama_cpp_port),
-        "-hf",
-        settings.llama_cpp_model_ref,
+        *(
+            ["--model", settings.llama_cpp_model_path]
+            if settings.llama_cpp_model_path
+            else ["-hf", settings.llama_cpp_model_ref]
+        ),
         "--ctx-size",
         str(settings.llama_cpp_ctx_size),
         "--n-gpu-layers",
@@ -43,12 +46,47 @@ def build_llama_cpp_command(settings: Settings) -> list[str]:
     return command
 
 
-def wait_for_llama_cpp(settings: Settings, process: subprocess.Popen) -> None:
+def build_vision_llama_cpp_command(settings: Settings) -> list[str]:
+    command = [
+        settings.llama_cpp_server_bin,
+        "--host",
+        settings.llama_cpp_host,
+        "--port",
+        str(settings.vision_llama_cpp_port),
+        *(
+            ["--model", settings.vision_llama_cpp_model_path]
+            if settings.vision_llama_cpp_model_path
+            else ["-hf", settings.vision_llama_cpp_model_ref]
+        ),
+        "--ctx-size",
+        str(settings.vision_llama_cpp_ctx_size),
+        "--n-gpu-layers",
+        str(settings.vision_llama_cpp_gpu_layers),
+        "--threads",
+        str(settings.llama_cpp_threads),
+        "--parallel",
+        "1",
+    ]
+    if settings.vision_llama_cpp_mmproj_path:
+        command.extend(["--mmproj", settings.vision_llama_cpp_mmproj_path])
+    if settings.vision_llm_api_key:
+        command.extend(["--api-key", settings.vision_llm_api_key])
+    if settings.vision_llama_cpp_extra_args:
+        command.extend(shlex.split(settings.vision_llama_cpp_extra_args))
+    return command
+
+
+def wait_for_llama_cpp(
+    settings: Settings,
+    process: subprocess.Popen,
+    base_url: str,
+    api_key: str,
+) -> None:
     deadline = time.monotonic() + settings.llama_cpp_startup_timeout
-    health_url = f"{settings.llm_base_url}/health"
+    health_url = f"{base_url}/health"
     headers = {}
-    if settings.llama_cpp_api_key:
-        headers["Authorization"] = f"Bearer {settings.llama_cpp_api_key}"
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     while time.monotonic() < deadline:
         return_code = process.poll()
@@ -57,7 +95,7 @@ def wait_for_llama_cpp(settings: Settings, process: subprocess.Popen) -> None:
         try:
             with urlopen(Request(health_url, headers=headers), timeout=5) as response:
                 if response.status < 500:
-                    logger.info("Embedded llama.cpp is ready at %s", settings.llm_base_url)
+                    logger.info("Embedded llama.cpp is ready at %s", base_url)
                     return
         except (OSError, URLError):
             time.sleep(2)
@@ -74,7 +112,26 @@ def start_embedded_llama_cpp(settings: Settings) -> subprocess.Popen:
     ]
     logger.info("Starting embedded llama.cpp: %s", " ".join(printable))
     process = subprocess.Popen(command, start_new_session=True)
-    wait_for_llama_cpp(settings, process)
+    wait_for_llama_cpp(
+        settings, process, settings.llm_base_url, settings.llama_cpp_api_key
+    )
+    return process
+
+
+def start_embedded_vision_llama_cpp(settings: Settings) -> subprocess.Popen:
+    command = build_vision_llama_cpp_command(settings)
+    printable = [
+        "<redacted>" if part == settings.vision_llm_api_key else part
+        for part in command
+    ]
+    logger.info("Starting embedded vision llama.cpp: %s", " ".join(printable))
+    process = subprocess.Popen(command, start_new_session=True)
+    wait_for_llama_cpp(
+        settings,
+        process,
+        settings.vision_llm_base_url,
+        settings.vision_llm_api_key,
+    )
     return process
 
 
@@ -97,18 +154,27 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     settings = get_settings()
-    if settings.llm_runtime not in {"mock", "external", "embedded_llamacpp"}:
+    if settings.llm_runtime not in {
+        "mock",
+        "external",
+        "embedded_llamacpp",
+        "embedded_dual_llamacpp",
+    }:
         raise ValueError(
-            "LLM_RUNTIME must be mock, external, or embedded_llamacpp; "
+            "LLM_RUNTIME must be mock, external, embedded_llamacpp, or "
+            "embedded_dual_llamacpp; "
             f"received {settings.llm_runtime!r}."
         )
     if settings.llm_runtime == "external" and not settings.llm_base_url:
         raise ValueError("LLM_BASE_URL is required when LLM_RUNTIME=external.")
 
     model_process: subprocess.Popen | None = None
+    vision_process: subprocess.Popen | None = None
     try:
-        if settings.llm_runtime == "embedded_llamacpp":
+        if settings.llm_runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
             model_process = start_embedded_llama_cpp(settings)
+        if settings.llm_runtime == "embedded_dual_llamacpp":
+            vision_process = start_embedded_vision_llama_cpp(settings)
         uvicorn.run(
             "main:app",
             host=os.getenv("HOST", "0.0.0.0"),
@@ -116,6 +182,7 @@ def main() -> None:
             log_level=os.getenv("LOG_LEVEL", "info").lower(),
         )
     finally:
+        stop_process(vision_process)
         stop_process(model_process)
 
 

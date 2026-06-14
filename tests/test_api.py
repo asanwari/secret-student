@@ -24,7 +24,7 @@ from app.llm_clients import (
     create_llm_client,
 )
 from app.config import Settings
-from app.schemas import BossMission, LessonPackage
+from app.schemas import BossMission, LessonPackage, Question
 
 
 PNG_DATA_URL = (
@@ -595,3 +595,77 @@ def test_drawn_answer_submission_uses_mock_vision():
         )
         assert response.status_code == 200, response.text
         assert response.json()["result"]["correct"] is True
+
+
+def test_drawn_verification_routes_to_vision_model(tmp_path, monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "correct": True,
+                                    "confidence": 0.9,
+                                    "feedback": "Correct.",
+                                    "observed_answer": "5",
+                                }
+                            )
+                        },
+                    }
+                ]
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, **kwargs):
+            captured.update(url=url, headers=kwargs["headers"], payload=kwargs["json"])
+            return FakeResponse()
+
+    monkeypatch.setattr("app.llm_clients.httpx.AsyncClient", FakeAsyncClient)
+    client = OpenAICompatibleLLMClient(
+        Settings(
+            llm_provider="openai_compatible",
+            llm_base_url="http://text.test",
+            llm_model="text-model",
+            vision_llm_base_url="http://vision.test",
+            vision_llm_api_key="vision-key",
+            vision_llm_model="vision-model",
+            trace_destination="local",
+            trace_dir=str(tmp_path),
+        )
+    )
+    question = Question(
+        id="q1",
+        question="What is 2 + 3?",
+        answer_type="numeric",
+        expected_answer="5",
+        acceptable_answers=["5"],
+        rubric="The written answer is 5.",
+        difficulty="easy",
+        explanation="Two plus three is five.",
+    )
+
+    result = asyncio.run(client.verify_drawn_answer(question, PNG_DATA_URL))
+
+    assert result.correct is True
+    assert captured["url"] == "http://vision.test/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer vision-key"
+    assert captured["payload"]["model"] == "vision-model"

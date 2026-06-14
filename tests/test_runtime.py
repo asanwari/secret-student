@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.config import Settings, get_settings
-from app.runtime import build_llama_cpp_command
+from app.runtime import build_llama_cpp_command, build_vision_llama_cpp_command
 
 
 @pytest.fixture(autouse=True)
@@ -15,10 +15,16 @@ def isolate_runtime_environment(monkeypatch):
         "LLM_BASE_URL",
         "LLM_API_KEY",
         "LLM_MODEL",
+        "VISION_LLM_BASE_URL",
+        "VISION_LLM_API_KEY",
+        "VISION_LLM_MODEL",
         "LLAMA_CPP_HOST",
         "LLAMA_CPP_PORT",
         "LLAMA_CPP_API_KEY",
         "LLAMA_CPP_MODEL_REF",
+        "VISION_LLAMA_CPP_MODEL_REF",
+        "VISION_LLAMA_CPP_PORT",
+        "VISION_LLAMA_CPP_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -76,6 +82,58 @@ def test_embedded_llama_cpp_command_contains_runtime_settings():
     assert command[command.index("--ctx-size") + 1] == "4096"
     assert command[command.index("--api-key") + 1] == "secret-key"
     assert command[-3:] == ["--flash-attn", "on", "--no-webui"]
+
+
+def test_embedded_dual_runtime_configures_independent_models(monkeypatch):
+    monkeypatch.setenv("LLM_RUNTIME", "embedded_dual_llamacpp")
+    monkeypatch.setenv("LLAMA_CPP_MODEL_REF", "example/text:Q4_K_M")
+    monkeypatch.setenv("LLAMA_CPP_API_KEY", "text-key")
+    monkeypatch.setenv("VISION_LLAMA_CPP_MODEL_REF", "example/vision:Q4_K_M")
+    monkeypatch.setenv("VISION_LLAMA_CPP_PORT", "8124")
+    monkeypatch.setenv("VISION_LLAMA_CPP_API_KEY", "vision-key")
+
+    settings = get_settings()
+
+    assert settings.llm_base_url == "http://127.0.0.1:8001"
+    assert settings.llm_model == "example/text:Q4_K_M"
+    assert settings.vision_llm_base_url == "http://127.0.0.1:8124"
+    assert settings.vision_llm_model == "example/vision:Q4_K_M"
+    assert settings.vision_llm_api_key == "vision-key"
+
+    command = build_vision_llama_cpp_command(settings)
+    assert command[command.index("-hf") + 1] == "example/vision:Q4_K_M"
+    assert command[command.index("--port") + 1] == "8124"
+    assert command[command.index("--api-key") + 1] == "vision-key"
+
+
+def test_embedded_commands_prefer_persistent_model_paths():
+    settings = Settings(
+        llama_cpp_model_path="/data/models/text.gguf",
+        vision_llama_cpp_model_path="/data/models/vision.gguf",
+        vision_llama_cpp_mmproj_path="/data/models/mmproj.gguf",
+    )
+
+    text_command = build_llama_cpp_command(settings)
+    vision_command = build_vision_llama_cpp_command(settings)
+
+    assert text_command[text_command.index("--model") + 1] == "/data/models/text.gguf"
+    assert "-hf" not in text_command
+    assert vision_command[vision_command.index("--model") + 1] == "/data/models/vision.gguf"
+    assert vision_command[vision_command.index("--mmproj") + 1] == "/data/models/mmproj.gguf"
+
+
+def test_external_vision_defaults_to_generation_endpoint(monkeypatch):
+    monkeypatch.setenv("LLM_RUNTIME", "external")
+    monkeypatch.setenv("LLM_BASE_URL", "https://text.example")
+    monkeypatch.setenv("LLM_API_KEY", "shared-key")
+    monkeypatch.setenv("LLM_MODEL", "example/text")
+    monkeypatch.setenv("VISION_LLM_MODEL", "example/vision")
+
+    settings = get_settings()
+
+    assert settings.vision_llm_base_url == "https://text.example"
+    assert settings.vision_llm_api_key == "shared-key"
+    assert settings.vision_llm_model == "example/vision"
 
 
 def test_legacy_provider_selects_external_runtime(monkeypatch):

@@ -43,10 +43,14 @@ class Settings:
     llm_provider: str = "mock"
     llm_base_url: str = ""
     llm_api_key: str = ""
-    llm_model: str = "openbmb/MiniCPM-V-4.6"
+    llm_model: str = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
     llm_enable_thinking: bool = False
+    vision_llm_base_url: str = ""
+    vision_llm_api_key: str = ""
+    vision_llm_model: str = ""
     llama_cpp_server_bin: str = "/app/llama-server"
-    llama_cpp_model_ref: str = "ggml-org/gemma-3-1b-it-GGUF:Q4_K_M"
+    llama_cpp_model_ref: str = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
+    llama_cpp_model_path: str = ""
     llama_cpp_host: str = "127.0.0.1"
     llama_cpp_port: int = 8001
     llama_cpp_api_key: str = "local-dev-key"
@@ -56,6 +60,13 @@ class Settings:
     llama_cpp_parallel: int = 1
     llama_cpp_startup_timeout: int = 900
     llama_cpp_extra_args: str = ""
+    vision_llama_cpp_model_ref: str = "openbmb/MiniCPM-V-4_5-gguf:Q4_K_M"
+    vision_llama_cpp_model_path: str = ""
+    vision_llama_cpp_mmproj_path: str = ""
+    vision_llama_cpp_port: int = 8002
+    vision_llama_cpp_ctx_size: int = 4096
+    vision_llama_cpp_gpu_layers: int = 999
+    vision_llama_cpp_extra_args: str = ""
     trace_destination: str = "local"
     trace_dir: str = "debug_traces"
     trace_hub_repo_id: str = ""
@@ -88,7 +99,7 @@ def get_settings() -> Settings:
     if llm_runtime == "mock":
         llm_provider = "mock"
         llm_base_url = ""
-    elif llm_runtime == "embedded_llamacpp":
+    elif llm_runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
         llm_provider = "openai_compatible"
         llm_base_url = f"http://{llama_cpp_host}:{llama_cpp_port}"
     else:
@@ -108,7 +119,7 @@ def get_settings() -> Settings:
         llm_base_url=llm_base_url,
         llm_api_key=(
             llama_cpp_api_key
-            if llm_runtime == "embedded_llamacpp"
+            if llm_runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}
             else os.getenv("LLM_API_KEY", "").strip()
         ),
         llm_model=os.getenv(
@@ -116,12 +127,31 @@ def get_settings() -> Settings:
             os.getenv("LLAMA_CPP_MODEL_REF", Settings.llm_model),
         ).strip(),
         llm_enable_thinking=_read_bool("LLM_ENABLE_THINKING", False),
+        vision_llm_base_url=(
+            f"http://{llama_cpp_host}:"
+            f"{_read_int('VISION_LLAMA_CPP_PORT', Settings.vision_llama_cpp_port)}"
+            if llm_runtime == "embedded_dual_llamacpp"
+            else os.getenv("VISION_LLM_BASE_URL", llm_base_url).strip().rstrip("/")
+        ),
+        vision_llm_api_key=(
+            os.getenv("VISION_LLAMA_CPP_API_KEY", llama_cpp_api_key).strip()
+            if llm_runtime == "embedded_dual_llamacpp"
+            else os.getenv("VISION_LLM_API_KEY", os.getenv("LLM_API_KEY", "")).strip()
+        ),
+        vision_llm_model=os.getenv(
+            "VISION_LLM_MODEL",
+            os.getenv(
+                "VISION_LLAMA_CPP_MODEL_REF",
+                os.getenv("LLM_MODEL", Settings.llm_model),
+            ),
+        ).strip(),
         llama_cpp_server_bin=os.getenv(
             "LLAMA_CPP_SERVER_BIN", Settings.llama_cpp_server_bin
         ).strip(),
         llama_cpp_model_ref=os.getenv(
             "LLAMA_CPP_MODEL_REF", Settings.llama_cpp_model_ref
         ).strip(),
+        llama_cpp_model_path=os.getenv("LLAMA_CPP_MODEL_PATH", "").strip(),
         llama_cpp_host=llama_cpp_host,
         llama_cpp_port=llama_cpp_port,
         llama_cpp_api_key=llama_cpp_api_key,
@@ -135,6 +165,27 @@ def get_settings() -> Settings:
             "LLAMA_CPP_STARTUP_TIMEOUT", Settings.llama_cpp_startup_timeout
         ),
         llama_cpp_extra_args=os.getenv("LLAMA_CPP_EXTRA_ARGS", "").strip(),
+        vision_llama_cpp_model_ref=os.getenv(
+            "VISION_LLAMA_CPP_MODEL_REF", Settings.vision_llama_cpp_model_ref
+        ).strip(),
+        vision_llama_cpp_model_path=os.getenv(
+            "VISION_LLAMA_CPP_MODEL_PATH", ""
+        ).strip(),
+        vision_llama_cpp_mmproj_path=os.getenv(
+            "VISION_LLAMA_CPP_MMPROJ_PATH", ""
+        ).strip(),
+        vision_llama_cpp_port=_read_int(
+            "VISION_LLAMA_CPP_PORT", Settings.vision_llama_cpp_port
+        ),
+        vision_llama_cpp_ctx_size=_read_int(
+            "VISION_LLAMA_CPP_CTX_SIZE", Settings.vision_llama_cpp_ctx_size
+        ),
+        vision_llama_cpp_gpu_layers=_read_int(
+            "VISION_LLAMA_CPP_GPU_LAYERS", Settings.vision_llama_cpp_gpu_layers
+        ),
+        vision_llama_cpp_extra_args=os.getenv(
+            "VISION_LLAMA_CPP_EXTRA_ARGS", ""
+        ).strip(),
         trace_destination=os.getenv("TRACE_DESTINATION", Settings.trace_destination)
         .strip()
         .lower(),

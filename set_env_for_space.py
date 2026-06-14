@@ -9,8 +9,8 @@ from huggingface_hub import HfApi
 
 
 DEFAULT_SPACE = "asanwari/secret-student"
-DEFAULT_NEMOTRON_REF = "ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M"
-DEFAULT_MINI_CPM_REF = "openbmb/MiniCPM-V-4.6-gguf:Q4_K_M"
+DEFAULT_TEXT_MODEL_REF = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
+DEFAULT_MINI_CPM_REF = "openbmb/MiniCPM-V-4_5-gguf:Q4_K_M"
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,19 +20,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--space", default=DEFAULT_SPACE)
     parser.add_argument(
         "--runtime",
-        choices=("mock", "external", "embedded_llamacpp"),
-        default="embedded_llamacpp",
+        choices=("mock", "external", "embedded_llamacpp", "embedded_dual_llamacpp"),
+        default="embedded_dual_llamacpp",
     )
     parser.add_argument("--base-url", default=os.getenv("LLM_BASE_URL", ""))
     parser.add_argument(
         "--model",
-        default=os.getenv("LLM_MODEL", DEFAULT_NEMOTRON_REF),
+        default=os.getenv("LLM_MODEL", DEFAULT_TEXT_MODEL_REF),
         help="Model name sent in OpenAI-compatible requests.",
     )
     parser.add_argument(
         "--llama-model-ref",
-        default=os.getenv("LLAMA_CPP_MODEL_REF", DEFAULT_NEMOTRON_REF),
+        default=os.getenv("LLAMA_CPP_MODEL_REF", DEFAULT_TEXT_MODEL_REF),
         help="GGUF repository and quantization downloaded by embedded llama.cpp.",
+    )
+    parser.add_argument(
+        "--llama-model-path",
+        default=os.getenv(
+            "LLAMA_CPP_MODEL_PATH",
+            "/data/models/qwen3-8b/Qwen3-8B-Q4_K_M.gguf",
+        ),
     )
     parser.add_argument("--ctx-size", type=int, default=8192)
     parser.add_argument("--gpu-layers", type=int, default=999)
@@ -40,6 +47,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--parallel", type=int, default=1)
     parser.add_argument("--startup-timeout", type=int, default=900)
     parser.add_argument("--extra-args", default="")
+    parser.add_argument(
+        "--vision-base-url", default=os.getenv("VISION_LLM_BASE_URL", "")
+    )
+    parser.add_argument(
+        "--vision-model",
+        default=os.getenv("VISION_LLM_MODEL", DEFAULT_MINI_CPM_REF),
+    )
+    parser.add_argument(
+        "--vision-llama-model-ref",
+        default=os.getenv("VISION_LLAMA_CPP_MODEL_REF", DEFAULT_MINI_CPM_REF),
+    )
+    parser.add_argument(
+        "--vision-llama-model-path",
+        default=os.getenv(
+            "VISION_LLAMA_CPP_MODEL_PATH",
+            "/data/models/minicpm-v-4_5/MiniCPM-V-4_5-Q4_K_M.gguf",
+        ),
+    )
+    parser.add_argument(
+        "--vision-mmproj-path",
+        default=os.getenv(
+            "VISION_LLAMA_CPP_MMPROJ_PATH",
+            "/data/models/minicpm-v-4_5/mmproj-model-f16.gguf",
+        ),
+    )
+    parser.add_argument("--vision-port", type=int, default=8002)
+    parser.add_argument("--vision-ctx-size", type=int, default=4096)
+    parser.add_argument("--vision-gpu-layers", type=int, default=999)
+    parser.add_argument("--vision-extra-args", default="")
     parser.add_argument("--quiz-count", type=int, default=5)
     parser.add_argument("--boss-count", type=int, default=10)
     parser.add_argument("--boss-max-mistakes", type=int, default=3)
@@ -83,6 +119,7 @@ def build_variables(args: argparse.Namespace) -> dict[str, str]:
         "LLM_RUNTIME": args.runtime,
         "LLM_PROVIDER": "mock" if args.runtime == "mock" else "openai_compatible",
         "LLM_MODEL": args.model,
+        "VISION_LLM_MODEL": args.vision_model,
         "LLM_ENABLE_THINKING": bool_text(args.enable_thinking),
         "TRACE_DESTINATION": args.trace_destination,
         "TRACE_DIR": args.trace_dir,
@@ -98,12 +135,16 @@ def build_variables(args: argparse.Namespace) -> dict[str, str]:
         if not args.base_url:
             raise SystemExit("--base-url or LLM_BASE_URL is required for external runtime.")
         variables["LLM_BASE_URL"] = args.base_url.rstrip("/")
+        variables["VISION_LLM_BASE_URL"] = (
+            args.vision_base_url or args.base_url
+        ).rstrip("/")
 
-    if args.runtime == "embedded_llamacpp":
+    if args.runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
         variables.update(
             {
                 "LLAMA_CPP_SERVER_BIN": "/app/llama-server",
                 "LLAMA_CPP_MODEL_REF": args.llama_model_ref,
+                "LLAMA_CPP_MODEL_PATH": args.llama_model_path,
                 "LLAMA_CPP_HOST": "127.0.0.1",
                 "LLAMA_CPP_PORT": "8001",
                 "LLAMA_CPP_CTX_SIZE": str(args.ctx_size),
@@ -112,6 +153,18 @@ def build_variables(args: argparse.Namespace) -> dict[str, str]:
                 "LLAMA_CPP_PARALLEL": str(args.parallel),
                 "LLAMA_CPP_STARTUP_TIMEOUT": str(args.startup_timeout),
                 "LLAMA_CPP_EXTRA_ARGS": args.extra_args,
+            }
+        )
+    if args.runtime == "embedded_dual_llamacpp":
+        variables.update(
+            {
+                "VISION_LLAMA_CPP_MODEL_REF": args.vision_llama_model_ref,
+                "VISION_LLAMA_CPP_MODEL_PATH": args.vision_llama_model_path,
+                "VISION_LLAMA_CPP_MMPROJ_PATH": args.vision_mmproj_path,
+                "VISION_LLAMA_CPP_PORT": str(args.vision_port),
+                "VISION_LLAMA_CPP_CTX_SIZE": str(args.vision_ctx_size),
+                "VISION_LLAMA_CPP_GPU_LAYERS": str(args.vision_gpu_layers),
+                "VISION_LLAMA_CPP_EXTRA_ARGS": args.vision_extra_args,
             }
         )
     return variables
@@ -130,7 +183,12 @@ def build_secrets(args: argparse.Namespace) -> dict[str, str]:
         configured["LLM_API_KEY"] = secret_value(
             "LLM_API_KEY", "External LLM API key", no_prompt=args.no_prompt
         )
-    if args.runtime == "embedded_llamacpp":
+        configured["VISION_LLM_API_KEY"] = secret_value(
+            "VISION_LLM_API_KEY",
+            "Vision LLM API key (leave blank to reuse LLM_API_KEY)",
+            no_prompt=args.no_prompt,
+        )
+    if args.runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
         configured["LLAMA_CPP_API_KEY"] = secret_value(
             "LLAMA_CPP_API_KEY",
             "Internal llama.cpp API key",
@@ -139,6 +197,12 @@ def build_secrets(args: argparse.Namespace) -> dict[str, str]:
         )
         configured["HF_TOKEN"] = secret_value(
             "HF_TOKEN", "Hugging Face token for model downloads", no_prompt=args.no_prompt
+        )
+    if args.runtime == "embedded_dual_llamacpp":
+        configured["VISION_LLAMA_CPP_API_KEY"] = secret_value(
+            "VISION_LLAMA_CPP_API_KEY",
+            "Internal vision llama.cpp API key (leave blank to reuse LLAMA_CPP_API_KEY)",
+            no_prompt=args.no_prompt,
         )
     if args.trace_destination == "hub":
         configured["TRACE_HUB_TOKEN"] = secret_value(

@@ -320,6 +320,7 @@ class OpenAICompatibleLLMClient(LLMClient):
             enable_thinking=False,
             response_format=_verification_response_format(),
             validator=_validate_verification_payload,
+            use_vision_model=True,
         )
         return VerificationResult(
             correct=bool(data.get("correct", False)),
@@ -339,10 +340,26 @@ class OpenAICompatibleLLMClient(LLMClient):
         normalizer=None,
         validator=None,
         repairer=None,
+        use_vision_model: bool = False,
     ) -> dict:
         trace = TraceRun(self.settings, log_label, trace_context)
+        base_url = (
+            self.settings.vision_llm_base_url
+            if use_vision_model
+            else self.settings.llm_base_url
+        )
+        api_key = (
+            self.settings.vision_llm_api_key
+            if use_vision_model
+            else self.settings.llm_api_key
+        )
+        model = (
+            self.settings.vision_llm_model
+            if use_vision_model
+            else self.settings.llm_model
+        )
         payload: dict = {
-            "model": self.settings.llm_model,
+            "model": model,
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": max_tokens,
@@ -359,19 +376,19 @@ class OpenAICompatibleLLMClient(LLMClient):
             }
 
         headers = {"Content-Type": "application/json"}
-        if self.settings.llm_api_key:
-            headers["Authorization"] = f"Bearer {self.settings.llm_api_key}"
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         trace.event(
             "request",
-            endpoint=f"{self.settings.llm_base_url}/v1/chat/completions",
+            endpoint=f"{base_url}/v1/chat/completions",
             messages=messages,
             parameters={key: value for key, value in payload.items() if key != "messages"},
         )
         try:
             async with httpx.AsyncClient(timeout=180) as client:
                 response = await client.post(
-                    f"{self.settings.llm_base_url}/v1/chat/completions",
+                    f"{base_url}/v1/chat/completions",
                     headers=headers,
                     json=payload,
                 )

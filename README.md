@@ -50,6 +50,7 @@ Choose the model runtime at application startup:
 LLM_RUNTIME=mock                # no external model; deterministic demo content
 LLM_RUNTIME=external            # Modal or another OpenAI-compatible endpoint
 LLM_RUNTIME=embedded_llamacpp   # llama.cpp runs beside the app in one container
+LLM_RUNTIME=embedded_dual_llamacpp # separate text and vision llama.cpp servers
 ```
 
 `LLM_PROVIDER` remains supported for older local `.env` files, but
@@ -134,6 +135,37 @@ The Space must use regular GPU hardware for this mode. Hugging Face ZeroGPU is
 available only to Gradio SDK Spaces using dynamically decorated GPU functions;
 it cannot provide a long-lived GPU to this Docker supervisor. Persistent Space
 storage is recommended because model caches live under `/data`.
+
+### Dual-model Space runtime
+
+The recommended L4 configuration uses Qwen3-8B for lesson generation and
+teacher chat, and MiniCPM-V only for handwritten-answer extraction:
+
+```bash
+LLM_RUNTIME=embedded_dual_llamacpp
+LLAMA_CPP_MODEL_PATH=/data/models/qwen3-8b/Qwen3-8B-Q4_K_M.gguf
+VISION_LLAMA_CPP_MODEL_PATH=/data/models/minicpm-v-4_5/MiniCPM-V-4_5-Q4_K_M.gguf
+VISION_LLAMA_CPP_MMPROJ_PATH=/data/models/minicpm-v-4_5/mmproj-model-f16.gguf
+```
+
+Upload those completed files to the mounted bucket once. The runtime reads them
+directly on every restart. Fallback `-hf` downloads use `/tmp/llama.cpp` because
+bucket mounts do not support the atomic cache rename used by llama.cpp.
+
+The preload helper is designed for a Hugging Face Job or another machine where
+the bucket is mounted at `/data`:
+
+```bash
+uv run python scripts/preload_space_models.py
+```
+
+It downloads to local temporary storage first and then copies completed files
+to `/data/models`, safely resuming by checking existing file sizes.
+
+Run `uv run python set_env_for_space.py --runtime embedded_dual_llamacpp` to
+configure both local servers. Use empty `--llama-model-path` and
+`--vision-llama-model-path` values only when intentionally using ephemeral
+Hub downloads instead of preloaded bucket files.
 
 For local NVIDIA Docker testing with a separate llama.cpp service:
 
