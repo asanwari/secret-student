@@ -160,5 +160,6 @@ class LocationUpdateRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     ok: bool
+    runtime: str
     provider: str
     model: str

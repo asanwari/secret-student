@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.env
+.env.*
+!.env.example
+data
+debug_submissions
+debug_traces
+llm_debug_traces
+.DS_Store
