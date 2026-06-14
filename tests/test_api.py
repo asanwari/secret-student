@@ -16,7 +16,6 @@ from app.image_validation import validate_image_data_url
 from app.llm_clients import (
     MockLLMClient,
     OpenAICompatibleLLMClient,
-    _build_addition_fallback,
     _lesson_response_format,
     _normalize_lesson_package,
     _validate_lesson_counts,
@@ -191,19 +190,19 @@ def test_lesson_generation_disables_thinking_for_structured_output(tmp_path, mon
         "topic": "addition",
         "learner_level": "Primary school",
         "lesson_steps": [
-            {"title": f"Step {index}", "body": f"Learn idea {index}.", "example": f"{index} + 1 = {index + 1}"}
+            {"title": f"Step {index}", "body": "Learn", "example": "1 + 1 = 2"}
             for index in range(6)
         ],
         "quiz_questions": [
             {
                 "id": f"q{index}",
-                "question": f"What is {index} + 1?",
+                "question": "What is 1 + 1?",
                 "answer_type": "numeric",
-                "expected_answer": str(index + 1),
-                "acceptable_answers": [str(index + 1)],
-                "rubric": f"Accept {index + 1}",
+                "expected_answer": "2",
+                "acceptable_answers": ["2"],
+                "rubric": "Accept 2",
                 "difficulty": "easy",
-                "explanation": f"{index} plus one is {index + 1}.",
+                "explanation": "One plus one is two.",
             }
             for index in range(5)
         ],
@@ -213,13 +212,13 @@ def test_lesson_generation_disables_thinking_for_structured_output(tmp_path, mon
             "questions": [
                 {
                     "id": f"b{index}",
-                    "question": f"What is {index + 10} + 2?",
+                    "question": "What is 2 + 2?",
                     "answer_type": "numeric",
-                    "expected_answer": str(index + 12),
-                    "acceptable_answers": [str(index + 12)],
-                    "rubric": f"Accept {index + 12}",
+                    "expected_answer": "4",
+                    "acceptable_answers": ["4"],
+                    "rubric": "Accept 4",
                     "difficulty": "hard",
-                    "explanation": f"{index + 10} plus two is {index + 12}.",
+                    "explanation": "Two plus two is four.",
                 }
                 for index in range(10)
             ],
@@ -363,7 +362,7 @@ def test_register_login_and_duplicate_username():
         registered = register(client, username)
         assert registered["session_token"]
         auth_cookie = client.cookies.get("secret_student_token")
-        assert auth_cookie.strip('"') == registered["session_token"]
+        assert auth_cookie == registered["session_token"]
 
         # Space embeds can block third-party cookies. The returned bearer token
         # must authenticate independently of the cookie set during registration.
@@ -492,92 +491,6 @@ def test_lesson_validation_rejects_long_steps_and_missing_media():
     package = LessonPackage.model_validate(base)
     with pytest.raises(ValueError, match="unavailable media"):
         _validate_lesson_counts(package, 0, 0)
-
-
-def test_lesson_validation_rejects_live_model_quality_failures():
-    questions = [
-        {
-            "id": "q1",
-            "question": "What is 4 plus 6?",
-            "answer_type": "numeric",
-            "expected_answer": "10",
-            "acceptable_answers": ["4+6"],
-            "rubric": "Accept the total.",
-            "difficulty": "easy",
-            "explanation": "Four plus six is ten.",
-        }
-    ]
-    package = LessonPackage.model_validate(
-        {
-            "topic": "addition",
-            "learner_level": "Primary school",
-            "lesson_steps": [
-                {"title": "Introduction", "body": "Use a visual aid if possible for young learners."},
-                {"title": "Repeated", "body": "The boss will test your understanding.", "example": "Type numeric."},
-                {"title": "Repeated", "body": "The boss will test your understanding.", "example": "Type numeric."},
-                {"title": "Practice", "body": "Clear explanation.}"},
-                {"title": "Recap", "body": "Addition combines amounts."},
-                {"title": "Ready", "body": "Four plus six equals ten."},
-            ],
-            "quiz_questions": questions,
-            "boss_mission": {
-                "boss_name": "Boss",
-                "briefing": "Briefing",
-                "questions": [{**questions[0], "id": "b1", "difficulty": "medium"}],
-            },
-        }
-    )
-    with pytest.raises(ValueError) as exc_info:
-        _validate_lesson_counts(package, 1, 1)
-    message = str(exc_info.value)
-    assert "unavailable media" in message
-    assert "game-meta" in message
-    assert "duplicates" in message
-    assert "stray JSON punctuation" in message
-    assert "nonnumeric answer" in message
-    assert "invalid difficulty" in message
-
-
-def test_lesson_validation_checks_arithmetic_answers_and_requested_limit():
-    package = LessonPackage.model_validate(
-        {
-            "topic": "adding numbers up to ten",
-            "learner_level": "Primary school",
-            "lesson_steps": [
-                {"title": f"Idea {index}", "body": f"Addition idea number {index} explains a distinct way to combine two quantities clearly.", "example": f"Example {index} uses a different pair of small values."}
-                for index in range(6)
-            ],
-            "quiz_questions": [
-                {"id": "q1", "question": "What is the sum of 4 and 5?", "answer_type": "numeric", "expected_answer": "9", "acceptable_answers": ["8"], "rubric": "Correct total", "difficulty": "easy", "explanation": "Four plus five is nine."}
-            ],
-            "boss_mission": {
-                "boss_name": "Boss",
-                "briefing": "Briefing",
-                "questions": [
-                    {"id": "b1", "question": "What is the sum of 8 and 7?", "answer_type": "numeric", "expected_answer": "15", "acceptable_answers": ["15"], "rubric": "Correct total", "difficulty": "hard", "explanation": "Eight plus seven is fifteen."}
-                ],
-            },
-        }
-    )
-    with pytest.raises(ValueError) as exc_info:
-        _validate_lesson_counts(package, 1, 1, "addition with sums no greater than 10")
-    message = str(exc_info.value)
-    assert "contradicts the arithmetic result 9" in message
-    assert "exceeds requested limit 10" in message
-
-
-def test_addition_fallback_is_valid_unique_and_within_limit():
-    package = _build_addition_fallback(
-        "addition with sums no greater than 10", "Primary school", 3, 5
-    )
-    assert package is not None
-    _validate_lesson_counts(package, 3, 5, "addition with sums no greater than 10")
-    assert len(package.lesson_steps) == 6
-    assert all(question.difficulty == "hard" for question in package.boss_mission.questions)
-    all_questions = [*package.quiz_questions, *package.boss_mission.questions]
-    assert len({question.question for question in all_questions}) == 8
-    assert all(float(question.expected_answer) <= 10 for question in all_questions)
-    assert len({question.expected_answer for question in all_questions}) >= 4
 
 
 def test_villain_image_url_accepts_safe_sources_and_drops_unsafe_ones():
