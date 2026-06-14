@@ -24,7 +24,7 @@ from app.llm_clients import (
     create_llm_client,
 )
 from app.config import Settings
-from app.schemas import BossMission, LessonPackage, Question
+from app.schemas import BossMission, LessonPackage, Question, SubmitAnswerRequest
 
 
 PNG_DATA_URL = (
@@ -595,6 +595,57 @@ def test_drawn_answer_submission_uses_mock_vision():
         )
         assert response.status_code == 200, response.text
         assert response.json()["result"]["correct"] is True
+
+
+def test_submit_request_discards_image_when_text_is_present():
+    request = SubmitAnswerRequest(
+        lesson_id=1,
+        question_id="q1",
+        mode="boss",
+        answer_text="  typed answer  ",
+        image_data_url=PNG_DATA_URL,
+    )
+
+    assert request.answer_text == "typed answer"
+    assert request.image_data_url is None
+
+
+def test_boss_typed_answer_uses_text_model_even_when_image_is_sent(monkeypatch):
+    class SpyClient(MockLLMClient):
+        def __init__(self):
+            self.text_calls = 0
+            self.vision_calls = 0
+
+        async def verify_text_answer(self, question, answer_text, trace_context=None):
+            self.text_calls += 1
+            return await super().verify_text_answer(question, answer_text, trace_context)
+
+        async def verify_drawn_answer(self, question, image_data_url, trace_context=None):
+            self.vision_calls += 1
+            return await super().verify_drawn_answer(question, image_data_url, trace_context)
+
+    spy = SpyClient()
+    monkeypatch.setattr("app.api.llm_client", spy)
+    init_db()
+    with TestClient(app) as client:
+        register(client)
+        lesson = start_lesson(client)
+        boss = client.post("/api/boss/start", json={"lesson_id": lesson["id"]}).json()
+        question = boss["question"]
+        response = client.post(
+            "/api/boss/submit",
+            json={
+                "lesson_id": lesson["id"],
+                "question_id": question["id"],
+                "mode": "boss",
+                "answer_text": question["expected_answer"],
+                "image_data_url": PNG_DATA_URL,
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert spy.text_calls == 1
+    assert spy.vision_calls == 0
 
 
 def test_drawn_verification_routes_to_vision_model(tmp_path, monkeypatch):

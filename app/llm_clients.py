@@ -59,6 +59,15 @@ class LLMClient(ABC):
     ) -> VerificationResult:
         raise NotImplementedError
 
+    @abstractmethod
+    async def verify_text_answer(
+        self,
+        question: Question,
+        answer_text: str,
+        trace_context: dict | None = None,
+    ) -> VerificationResult:
+        raise NotImplementedError
+
 
 class MockLLMClient(LLMClient):
     async def generate_lesson_package(
@@ -155,6 +164,22 @@ class MockLLMClient(LLMClient):
             confidence=0.8,
             observed_answer=question.expected_answer,
             feedback=f"Mock vision accepts the drawing as {question.expected_answer}.",
+        )
+
+    async def verify_text_answer(
+        self,
+        question: Question,
+        answer_text: str,
+        trace_context: dict | None = None,
+    ) -> VerificationResult:
+        observed = answer_text.strip()
+        expected = [question.expected_answer, *question.acceptable_answers]
+        correct = observed.casefold() in {value.strip().casefold() for value in expected}
+        return VerificationResult(
+            correct=correct,
+            confidence=1.0 if correct else 0.2,
+            observed_answer=observed,
+            feedback=question.explanation if correct else f"Expected: {question.expected_answer}. {question.explanation}",
         )
 
 
@@ -327,6 +352,41 @@ class OpenAICompatibleLLMClient(LLMClient):
             confidence=_normalize_confidence(data.get("confidence", 0)),
             feedback=str(data.get("feedback", "")).strip() or "I checked your work.",
             observed_answer=str(data.get("observed_answer", "")).strip(),
+        )
+
+    async def verify_text_answer(
+        self,
+        question: Question,
+        answer_text: str,
+        trace_context: dict | None = None,
+    ) -> VerificationResult:
+        prompt = (
+            "Grade the student's typed answer using only the question, expected answer, "
+            "acceptable answers, and rubric. Accept equivalent wording and numerically "
+            "equivalent values, but do not accept a materially different answer. Return "
+            "only JSON with keys correct boolean, confidence number 0-1, feedback string, "
+            "observed_answer string. "
+            f"Question: {question.question}. Expected answer: {question.expected_answer}. "
+            f"Acceptable answers: {question.acceptable_answers}. Rubric: {question.rubric}. "
+            f"Student answer: {answer_text.strip()}"
+        )
+        data = await self._chat_json(
+            [
+                {"role": "system", "content": "You grade children's typed answers accurately and kindly."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=300,
+            log_label="verify_text_answer",
+            trace_context=trace_context,
+            enable_thinking=False,
+            response_format=_verification_response_format(),
+            validator=_validate_verification_payload,
+        )
+        return VerificationResult(
+            correct=bool(data.get("correct", False)),
+            confidence=_normalize_confidence(data.get("confidence", 0)),
+            feedback=str(data.get("feedback", "")).strip() or "I checked your answer.",
+            observed_answer=str(data.get("observed_answer", "")).strip() or answer_text.strip(),
         )
 
     async def _chat_json(

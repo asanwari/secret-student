@@ -504,7 +504,15 @@ async def _verify_answer(
     user_id: int, question: Question, request: SubmitAnswerRequest
 ) -> tuple[VerificationResult, str | None]:
     if request.answer_text:
-        return _verify_text_answer(question, request.answer_text), None
+        try:
+            return await llm_client.verify_text_answer(
+                question,
+                request.answer_text,
+                trace_context={"user_id": user_id, "question_id": question.id},
+            ), None
+        except Exception as exc:
+            logger.exception("Text answer verification failed.")
+            raise HTTPException(status_code=502, detail=f"Answer verification failed: {exc}") from exc
     if not request.image_data_url:
         raise HTTPException(status_code=400, detail="Submit answer_text or image_data_url.")
     image_data_url = validate_image_data_url(request.image_data_url)

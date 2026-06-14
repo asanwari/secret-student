@@ -106,7 +106,8 @@ def test_quiz_and_boss_use_forms_and_typed_answers_take_precedence():
     assert 'id="submitBossAnswerButton" type="submit"' in INDEX
     assert 'ui.quizForm.addEventListener("submit", submitQuizAnswer)' in MAIN_JS
     assert 'ui.bossForm.addEventListener("submit", submitBossAnswer)' in MAIN_JS
-    assert "const image = text ? null : notebook.toDataUrlIfUsed()" in MAIN_JS
+    assert "if (text) return { ...base, answer_text: text }" in MAIN_JS
+    assert "return { ...base, image_data_url: image }" in MAIN_JS
     assert "event?.preventDefault()" in MAIN_JS
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 AnswerType = Literal["numeric", "text"]
@@ -142,6 +142,14 @@ class SubmitAnswerRequest(BaseModel):
     mode: AttemptMode
     answer_text: str | None = Field(default=None, max_length=1000)
     image_data_url: str | None = Field(default=None, min_length=32)
+
+    @model_validator(mode="after")
+    def prefer_typed_answer(self) -> "SubmitAnswerRequest":
+        if self.answer_text is not None:
+            self.answer_text = self.answer_text.strip() or None
+        if self.answer_text:
+            self.image_data_url = None
+        return self
 
 
 class SubmitAnswerResponse(BaseModel):

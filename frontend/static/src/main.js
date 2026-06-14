@@ -634,9 +634,11 @@ function setVillainImage(image, value) {
 function answerPayload(mode, question, input, notebook) {
   if (!state.lesson || !question) return null;
   const text = input.value.trim();
-  const image = text ? null : notebook.toDataUrlIfUsed();
-  if (!text && !image) return null;
-  return { lesson_id: state.lesson.id, question_id: question.id, mode, answer_text: text || null, image_data_url: image };
+  const base = { lesson_id: state.lesson.id, question_id: question.id, mode };
+  if (text) return { ...base, answer_text: text };
+  const image = notebook.toDataUrlIfUsed();
+  if (!image) return null;
+  return { ...base, image_data_url: image };
 }
 
 function hydratePersistentUi() {
