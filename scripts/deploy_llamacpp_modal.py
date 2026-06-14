@@ -11,7 +11,7 @@ import modal
 APP_NAME = os.getenv("MODAL_LLAMA_CPP_APP_NAME", "secret-student-llamacpp")
 MODEL_REF = os.getenv(
     "MODAL_LLAMA_CPP_MODEL_REF",
-    "ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M",
+    "openbmb/MiniCPM-V-4_5-gguf:Q4_K_M",
 )
 GPU = os.getenv("MODAL_LLAMA_CPP_GPU", "L40S")
 CTX_SIZE = os.getenv("MODAL_LLAMA_CPP_CTX_SIZE", "8192")

@@ -60,6 +60,88 @@ tracks:
 > same source and serves as the official submission artifact; use the personal
 > Space above to test the complete Qwen3 plus MiniCPM-V experience.
 
+## Judges: Inference and GPU Setup
+
+> [!CAUTION]
+> **Please read this before evaluating latency.** The organization submission is
+> currently configured as a CPU-hosted game that calls two Modal GPU endpoints.
+> Modal scales those endpoints down when idle, so the first lesson or handwritten
+> answer after an idle period can be **significantly slower while the GPU starts
+> and the GGUF model is loaded**. This is cold-start latency, not the normal warm
+> inference path. The application was deliberately built so the same Space can
+> instead run both models locally with only environment changes.
+
+### Recommended Evaluation Setup: One L4 Space GPU
+
+The Docker image already includes CUDA-enabled llama.cpp, and `app.runtime`
+already knows how to launch and health-check separate text and vision servers.
+No code changes or additional inference service are required.
+
+1. Assign an **NVIDIA L4** to the Space.
+2. In **Settings -> Variables and secrets**, replace the external runtime
+   configuration with the values below.
+3. Perform a **Factory Restart**. On the first boot, allow time for the model
+   downloads unless the GGUF files have already been placed in persistent
+   `/data/models` storage.
+
+**Variables:**
+
+```text
+LLM_RUNTIME=embedded_dual_llamacpp
+LLM_PROVIDER=openai_compatible
+
+LLM_MODEL=Qwen/Qwen3-8B-GGUF:Q4_K_M
+LLAMA_CPP_MODEL_REF=Qwen/Qwen3-8B-GGUF:Q4_K_M
+LLAMA_CPP_CTX_SIZE=8192
+LLAMA_CPP_GPU_LAYERS=999
+LLAMA_CPP_THREADS=8
+LLAMA_CPP_PARALLEL=1
+LLAMA_CPP_STARTUP_TIMEOUT=900
+
+VISION_LLM_MODEL=openbmb/MiniCPM-V-4_5-gguf:Q4_K_M
+VISION_LLAMA_CPP_MODEL_REF=openbmb/MiniCPM-V-4_5-gguf:Q4_K_M
+VISION_LLAMA_CPP_CTX_SIZE=4096
+VISION_LLAMA_CPP_GPU_LAYERS=999
+VISION_LLAMA_CPP_PORT=8002
+```
+
+**Secrets:**
+
+Secrets are already set and don't need to be touched.
+
+If the Space does not have preloaded model files, **delete**
+`LLAMA_CPP_MODEL_PATH`, `VISION_LLAMA_CPP_MODEL_PATH`, and
+`VISION_LLAMA_CPP_MMPROJ_PATH` from its variables. Their absence tells the
+runtime to download the configured GGUF repositories through llama.cpp. For
+faster restarts with persistent storage, preload the files and set:
+
+```text
+LLAMA_CPP_MODEL_PATH=/data/models/qwen3-8b/Qwen3-8B-Q4_K_M.gguf
+VISION_LLAMA_CPP_MODEL_PATH=/data/models/minicpm-v-4_5/MiniCPM-V-4_5-Q4_K_M.gguf
+VISION_LLAMA_CPP_MMPROJ_PATH=/data/models/minicpm-v-4_5/mmproj-model-f16.gguf
+```
+
+`LLM_BASE_URL`, `VISION_LLM_BASE_URL`, `LLM_API_KEY`, and
+`VISION_LLM_API_KEY` belong to the current Modal configuration. They are ignored
+by `embedded_dual_llamacpp` and may be removed when switching to local Space
+inference.
+
+### Configurability Built Into the Project
+
+| Area | Configuration |
+| --- | --- |
+| Inference topology | `mock`, one external endpoint, one embedded llama.cpp server, or independent embedded text and vision servers via `LLM_RUNTIME` |
+| Model selection | Text and vision model IDs, GGUF repositories, local file paths, and the MiniCPM-V projector are independent environment variables |
+| Hosting | One Docker Space, two Modal endpoints, another OpenAI-compatible service, local NVIDIA Docker, or consumer hardware running llama.cpp |
+| Performance | Context size, GPU layers, CPU threads, parallel slots, ports, startup timeout, and arbitrary extra llama.cpp arguments are configurable independently |
+| Storage | Models may download from the Hub at startup or load from persistent `/data/models`; SQLite progress and traces can also use `/data` |
+| Educational flow | Quiz count, boss-question count, maximum mistakes, and model thinking mode are environment-controlled |
+| Observability | Traces can be disabled, written locally, or uploaded in redacted form to a public or private Hub dataset |
+
+The repository includes `set_env_for_space.py` to apply either topology in one
+command. Full model-preloading, Modal, Docker Compose, and trace instructions are
+in the [Technical Guide](docs/TECHNICAL.md).
+
 | Track | How Secret Student qualifies |
 | --- | --- |
 | **Backyard Adventure** | The [actual public demo](https://huggingface.co/spaces/asanwari/secret-student) runs as a Docker Space on a persistent NVIDIA GPU, with the application and both llama.cpp servers in one deployment. The organization-owned submission mirrors the same code but currently lacks permission to provision GPU hardware. |
