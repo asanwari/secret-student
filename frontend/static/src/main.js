@@ -29,12 +29,12 @@ const ui = {
   closeHomeDialog: $("#closeHomeDialog"), phoneDialog: $("#phoneDialog"), phoneDialogText: $("#phoneDialogText"), practicePanel: $("#practicePanel"),
   practiceSearch: $("#practiceSearchInput"), practiceList: $("#practiceList"), homeStatus: $("#homeStatus"),
   bossName: $("#bossName"), bossBriefing: $("#bossBriefing"), startBoss: $("#startBossButton"),
-  quizQuestion: $("#quizQuestionText"), quizAnswer: $("#quizAnswerInput"), quizFeedback: $("#quizFeedback"),
+  quizForm: $("#quizAnswerForm"), quizQuestion: $("#quizQuestionText"), quizAnswer: $("#quizAnswerInput"), quizFeedback: $("#quizFeedback"),
   clearQuiz: $("#clearQuizCanvasButton"), submitQuiz: $("#submitQuizAnswerButton"),
   nextQuiz: $("#nextQuizQuestionButton"), quizProgress: $("#quizProgressBar"), quizProgressText: $("#quizProgressText"),
   quizProgressTrack: $("#quizProgressTrack"),
   battleBossName: $("#battleBossName"), battleStats: $("#battleStats"), bossQuestion: $("#bossQuestionText"),
-  bossAnswer: $("#bossAnswerInput"), bossFeedback: $("#bossFeedback"), clearBoss: $("#clearBossCanvasButton"), submitBoss: $("#submitBossAnswerButton"),
+  bossForm: $("#bossAnswerForm"), bossAnswer: $("#bossAnswerInput"), bossFeedback: $("#bossFeedback"), clearBoss: $("#clearBossCanvasButton"), submitBoss: $("#submitBossAnswerButton"),
   nextBoss: $("#nextBossQuestionButton"), bossProgress: $("#bossProgressBar"),
   bossProgressTrack: $("#bossProgressTrack"),
   hqVillain: $("#hqVillainImage"), battleVillain: $("#battleVillainImage"),
@@ -119,7 +119,7 @@ function wireEvents() {
   ui.continueOnboarding.addEventListener("click", advanceOnboarding);
   ui.logout.addEventListener("click", logout);
   ui.interact.addEventListener("click", () => world?.enterNearby());
-  $$('[data-move]').forEach((button) => button.addEventListener("click", () => world?.moveDirection(button.dataset.move)));
+  $$('[data-move]').forEach(wireMovementButton);
   $$('[data-back-to-world]').forEach((button) => button.addEventListener("click", () => goWorld("Back on the map.")));
   $$('[data-answer-exit]').forEach((button) => button.addEventListener("click", () => goWorld("You left the challenge.")));
   ui.lessonForm.addEventListener("submit", startLesson);
@@ -138,21 +138,28 @@ function wireEvents() {
   ui.startBoss.addEventListener("click", beginBoss);
   ui.clearQuiz.addEventListener("click", quizNotebook.clear);
   ui.clearBoss.addEventListener("click", bossNotebook.clear);
-  ui.submitQuiz.addEventListener("click", submitQuizAnswer);
-  ui.submitBoss.addEventListener("click", submitBossAnswer);
+  ui.quizForm.addEventListener("submit", submitQuizAnswer);
+  ui.bossForm.addEventListener("submit", submitBossAnswer);
   ui.nextQuiz.addEventListener("click", advanceQuizAfterFeedback);
   ui.nextBoss.addEventListener("click", advanceBossAfterFeedback);
-  ui.quizAnswer.addEventListener("keydown", submitOnEnter(submitQuizAnswer));
-  ui.bossAnswer.addEventListener("keydown", submitOnEnter(submitBossAnswer));
 }
 
-function submitOnEnter(callback) {
-  return (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      callback();
+function wireMovementButton(button) {
+  const stop = (event) => {
+    world?.stopMoving(button.dataset.move);
+    if (event?.pointerId !== undefined && button.hasPointerCapture?.(event.pointerId)) {
+      button.releasePointerCapture(event.pointerId);
     }
   };
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    button.setPointerCapture?.(event.pointerId);
+    world?.startMoving(button.dataset.move);
+  });
+  button.addEventListener("pointerup", stop);
+  button.addEventListener("pointercancel", stop);
+  button.addEventListener("lostpointercapture", () => world?.stopMoving(button.dataset.move));
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
 function setAuthMode(mode) {
@@ -310,6 +317,7 @@ function changeLessonStep(change) {
   state.lessonStep = Math.max(0, Math.min(state.lesson.lesson_steps.length - 1, state.lessonStep + change));
   ensureTeacherChatForStep();
   renderLesson();
+  scrollToStart(ui.lessonReader);
 }
 
 function advanceLesson() {
@@ -354,7 +362,7 @@ async function sendTeacherQuestion(question) {
     state.teacherChatHistory.push({ role: "teacher", content: `I could not answer that yet: ${error.message}` });
   } finally {
     setLoading(false);
-    renderTeacherChat();
+    renderTeacherChat({ alignLatestTeacher: true });
     ui.teacherFollowup.focus();
   }
 }
@@ -374,7 +382,7 @@ function resetTeacherChat() {
   ensureTeacherChatForStep();
 }
 
-function renderTeacherChat() {
+function renderTeacherChat({ alignLatestTeacher = false } = {}) {
   ui.teacherChatMessages.replaceChildren();
   for (const message of state.teacherChatHistory) {
     const bubble = document.createElement("p");
@@ -382,7 +390,27 @@ function renderTeacherChat() {
     bubble.textContent = message.content;
     ui.teacherChatMessages.append(bubble);
   }
-  ui.teacherChatMessages.scrollTop = ui.teacherChatMessages.scrollHeight;
+  if (alignLatestTeacher) {
+    const latestTeacher = ui.teacherChatMessages.querySelector(".chat-message.teacher:last-of-type");
+    if (latestTeacher) requestAnimationFrame(() => scrollElementToTop(ui.teacherChatMessages, latestTeacher));
+  } else {
+    ui.teacherChatMessages.scrollTop = ui.teacherChatMessages.scrollHeight;
+  }
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+function scrollToStart(element) {
+  element.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+}
+
+function scrollElementToTop(container, element) {
+  container.scrollTo({
+    top: Math.max(0, element.offsetTop - container.offsetTop),
+    behavior: prefersReducedMotion() ? "auto" : "smooth",
+  });
 }
 
 function beginQuiz() {
@@ -403,30 +431,31 @@ function renderQuizQuestion() {
   ui.quizProgressTrack.setAttribute("aria-valuemax", total);
   ui.quizProgressTrack.setAttribute("aria-valuenow", state.quizIndex + 1);
   ui.quizAnswer.value = "";
-  ui.quizFeedback.textContent = "";
+  setFeedback("quiz", "neutral", "");
   ui.nextQuiz.hidden = true;
   setAnswerControls("quiz", false);
   quizNotebook.clear();
 }
 
-async function submitQuizAnswer() {
+async function submitQuizAnswer(event) {
+  event?.preventDefault();
   if (state.quizPending) return;
   const payload = answerPayload("quiz", state.quizQuestion, ui.quizAnswer, quizNotebook);
-  if (!payload) { ui.quizFeedback.textContent = "Type or draw an answer first."; return; }
+  if (!payload) { setFeedback("quiz", "error", "Type or draw an answer first."); return; }
   setLoading(true, "Checking your notebook...");
   try {
     const response = await postJson("/api/quiz/submit", payload);
-    ui.quizFeedback.textContent = response.result.feedback;
+    setFeedback("quiz", response.result.correct ? "correct" : "incorrect", response.result.feedback);
     state.quizPending = response;
     setAnswerControls("quiz", true);
     if (response.completed) {
-      ui.quizFeedback.textContent += " Quiz complete. Go home for your mission call.";
+      appendFeedback("quiz", " Quiz complete. Go home for your mission call.");
       ui.nextQuiz.textContent = "Finish Quiz";
     } else {
       ui.nextQuiz.textContent = "Next Question";
     }
     ui.nextQuiz.hidden = false;
-  } catch (error) { ui.quizFeedback.textContent = error.message; }
+  } catch (error) { setFeedback("quiz", "error", error.message); }
   finally { setLoading(false); }
 }
 
@@ -518,34 +547,35 @@ function renderBossQuestion() {
   setVillainImage(ui.battleVillain, state.lesson?.boss_mission.villain_image_url);
   ui.bossQuestion.textContent = state.bossQuestion.question;
   ui.bossAnswer.value = "";
-  ui.bossFeedback.textContent = "";
+  setFeedback("boss", "neutral", "");
   ui.nextBoss.hidden = true;
   setAnswerControls("boss", false);
   bossNotebook.clear();
 }
 
-async function submitBossAnswer() {
+async function submitBossAnswer(event) {
+  event?.preventDefault();
   if (state.bossPending) return;
   const payload = answerPayload("boss", state.bossQuestion, ui.bossAnswer, bossNotebook);
-  if (!payload) { ui.bossFeedback.textContent = "Transmit an answer first."; return; }
+  if (!payload) { setFeedback("boss", "error", "Transmit an answer first."); return; }
   setLoading(true, "Resolving attack...");
   try {
     const response = await postJson("/api/boss/submit", payload);
-    ui.bossFeedback.textContent = response.result.feedback;
+    setFeedback("boss", response.result.correct ? "correct" : "incorrect", response.result.feedback);
     state.bossState = response;
     state.bossPending = response;
     setAnswerControls("boss", true);
     if (response.defeated) {
-      ui.bossFeedback.textContent += " Mission complete. The world is safe.";
+      appendFeedback("boss", " Mission complete. The world is safe.");
       ui.nextBoss.textContent = "Complete Mission";
     } else if (response.lost) {
-      ui.bossFeedback.textContent += " Retreat home and rest before trying again.";
+      appendFeedback("boss", " Retreat home and rest before trying again.");
       ui.nextBoss.textContent = "Retreat";
     } else {
       ui.nextBoss.textContent = response.question?.id === state.bossQuestion?.id ? "Try Again" : "Next Question";
     }
     ui.nextBoss.hidden = false;
-  } catch (error) { ui.bossFeedback.textContent = error.message; }
+  } catch (error) { setFeedback("boss", "error", error.message); }
   finally { setLoading(false); }
 }
 
@@ -574,6 +604,19 @@ function setAnswerControls(mode, locked) {
   controls.forEach((control) => { control.disabled = locked; });
   const canvas = mode === "quiz" ? $("#quizCanvas") : $("#bossCanvas");
   canvas.classList.toggle("locked", locked);
+}
+
+function setFeedback(mode, status, message) {
+  const feedback = mode === "quiz" ? ui.quizFeedback : ui.bossFeedback;
+  const surface = mode === "quiz" ? ui.quizForm : ui.bossForm;
+  feedback.textContent = message;
+  feedback.dataset.status = status;
+  surface.dataset.feedback = status;
+}
+
+function appendFeedback(mode, message) {
+  const feedback = mode === "quiz" ? ui.quizFeedback : ui.bossFeedback;
+  feedback.textContent += message;
 }
 
 function safeVillainUrl(value) {

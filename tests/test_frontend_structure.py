@@ -6,6 +6,7 @@ INDEX = (ROOT / "frontend/static/index.html").read_text()
 MAIN_JS = (ROOT / "frontend/static/src/main.js").read_text()
 API_JS = (ROOT / "frontend/static/src/api.js").read_text()
 WORLD_JS = (ROOT / "frontend/static/src/world.js").read_text()
+STYLES = (ROOT / "frontend/static/src/styles.css").read_text()
 
 
 def test_auth_is_the_only_initially_visible_game_screen():
@@ -66,6 +67,14 @@ def test_teacher_chat_supports_close_scroll_and_chained_questions():
     assert "teacherChatHistory" in MAIN_JS
     assert "history: priorHistory" in MAIN_JS
     assert "scrollTop = ui.teacherChatMessages.scrollHeight" in MAIN_JS
+    assert "scrollElementToTop(ui.teacherChatMessages, latestTeacher)" in MAIN_JS
+    assert 'querySelector(".chat-message.teacher:last-of-type")' in MAIN_JS
+
+
+def test_lesson_navigation_scrolls_reader_to_top_with_reduced_motion_support():
+    assert "scrollToStart(ui.lessonReader)" in MAIN_JS
+    assert 'window.matchMedia?.("(prefers-reduced-motion: reduce)")' in MAIN_JS
+    assert 'top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth"' in MAIN_JS
 
 
 def test_character_customization_is_registered_and_used_by_world():
@@ -88,6 +97,42 @@ def test_quiz_and_boss_wait_for_explicit_progression():
     assert "advanceBossAfterFeedback" in MAIN_JS
     assert "setTimeout(renderQuizQuestion" not in MAIN_JS
     assert "setTimeout(renderBossQuestion" not in MAIN_JS
+
+
+def test_quiz_and_boss_use_forms_and_typed_answers_take_precedence():
+    assert 'id="quizAnswerForm"' in INDEX
+    assert 'id="bossAnswerForm"' in INDEX
+    assert 'id="submitQuizAnswerButton" type="submit"' in INDEX
+    assert 'id="submitBossAnswerButton" type="submit"' in INDEX
+    assert 'ui.quizForm.addEventListener("submit", submitQuizAnswer)' in MAIN_JS
+    assert 'ui.bossForm.addEventListener("submit", submitBossAnswer)' in MAIN_JS
+    assert "const image = text ? null : notebook.toDataUrlIfUsed()" in MAIN_JS
+    assert "event?.preventDefault()" in MAIN_JS
+
+
+def test_answer_feedback_has_visual_states_and_resets():
+    assert 'setFeedback("quiz", response.result.correct ? "correct" : "incorrect"' in MAIN_JS
+    assert 'setFeedback("boss", response.result.correct ? "correct" : "incorrect"' in MAIN_JS
+    assert 'setFeedback("quiz", "neutral", "")' in MAIN_JS
+    assert 'setFeedback("boss", "neutral", "")' in MAIN_JS
+    assert '.feedback-line[data-status="correct"]' in STYLES
+    assert '.feedback-line[data-status="incorrect"]' in STYLES
+    assert '.battle-console[data-feedback="correct"]' in STYLES
+    assert '.notebook-page[data-feedback="incorrect"]' in STYLES
+
+
+def test_touch_navigation_supports_press_and_hold_cleanup():
+    assert "const heldDirections = new Set()" in WORLD_JS
+    assert "startMoving(direction)" in WORLD_JS
+    assert "stopMoving(direction)" in WORLD_JS
+    assert "heldDirections.clear()" in WORLD_JS
+    assert 'window.addEventListener("blur", clearMovement)' in WORLD_JS
+    assert 'window.removeEventListener("blur", clearMovement)' in WORLD_JS
+    assert 'button.addEventListener("pointerdown"' in MAIN_JS
+    assert 'button.addEventListener("pointerup", stop)' in MAIN_JS
+    assert 'button.addEventListener("pointercancel", stop)' in MAIN_JS
+    assert 'button.addEventListener("lostpointercapture"' in MAIN_JS
+    assert "touch-action: none" in STYLES
 
 
 def test_generated_room_and_character_art_are_wired_with_fallbacks():

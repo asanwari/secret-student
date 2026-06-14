@@ -185,17 +185,17 @@
 
       <section id="screen-quiz" class="game-screen answer-screen quiz-screen" data-screen="quiz" hidden>
         <button class="back-button dark" data-answer-exit type="button">Leave Quiz</button>
-        <div class="notebook-page">
+        <form id="quizAnswerForm" class="notebook-page answer-surface">
           <header><p class="eyebrow">School notebook</p><p id="quizProgressText" class="question-count">Question 1 of 1</p><div id="quizProgressTrack" class="progress-track" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><span id="quizProgressBar"></span></div><h2 id="quizQuestionText"></h2></header>
-          <label>Type your answer<input id="quizAnswerInput" autocomplete="off" /></label>
+          <label class="answer-input-label">Type your answer<input id="quizAnswerInput" autocomplete="off" inputmode="text" /></label>
           <canvas id="quizCanvas" width="720" height="330"></canvas>
           <div class="button-row">
             <button id="clearQuizCanvasButton" type="button" class="button secondary">Clear</button>
-            <button id="submitQuizAnswerButton" type="button" class="button primary">Submit Answer</button>
+            <button id="submitQuizAnswerButton" type="submit" class="button primary">Submit Answer</button>
           </div>
-          <p id="quizFeedback" class="feedback-line"></p>
+          <p id="quizFeedback" class="feedback-line" role="status" aria-live="polite"></p>
           <button id="nextQuizQuestionButton" type="button" class="button quiz-button" hidden>Next Question</button>
-        </div>
+        </form>
       </section>
 
       <section id="screen-boss" class="game-screen answer-screen boss-screen" data-screen="boss" hidden>
@@ -205,17 +205,17 @@
           <div class="battle-header"><p class="eyebrow">Boss battle</p><h2 id="battleBossName">Unknown Boss</h2><p id="battleStats"></p></div>
           <div id="bossProgressTrack" class="progress-track boss-progress" role="progressbar" aria-label="Boss battle progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><span id="bossProgressBar"></span></div>
         </div>
-        <div class="battle-console">
+        <form id="bossAnswerForm" class="battle-console answer-surface">
           <h2 id="bossQuestionText"></h2>
-          <label>Transmit answer<input id="bossAnswerInput" autocomplete="off" /></label>
+          <label class="answer-input-label">Transmit answer<input id="bossAnswerInput" autocomplete="off" inputmode="text" /></label>
           <canvas id="bossCanvas" width="720" height="250"></canvas>
           <div class="button-row">
             <button id="clearBossCanvasButton" type="button" class="button secondary">Clear</button>
-            <button id="submitBossAnswerButton" type="button" class="button danger">Attack</button>
+            <button id="submitBossAnswerButton" type="submit" class="button danger">Attack</button>
           </div>
-          <p id="bossFeedback" class="feedback-line"></p>
+          <p id="bossFeedback" class="feedback-line" role="status" aria-live="polite"></p>
           <button id="nextBossQuestionButton" type="button" class="button danger" hidden>Next Question</button>
-        </div>
+        </form>
       </section>
 
       <div id="loadingCurtain" class="loading-curtain" hidden><div class="loader"></div><p id="loadingText">Loading...</p></div>

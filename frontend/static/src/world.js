@@ -27,6 +27,7 @@ export function createWorldController({
   let sceneRef = null;
   let savedPlayerPosition = initialPlayerPosition;
   const pressedKeys = new Set();
+  const heldDirections = new Set();
 
   // Phaser's keyboard plugin captures arrow/WASD keys at the browser level.
   // World-scoped DOM listeners avoid that global capture entirely, so normal
@@ -50,7 +51,12 @@ export function createWorldController({
 
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
-  window.addEventListener("blur", () => pressedKeys.clear());
+  function clearMovement() {
+    pressedKeys.clear();
+    heldDirections.clear();
+  }
+
+  window.addEventListener("blur", clearMovement);
 
   class WorldScene extends Phaser.Scene {
     constructor() { super("WorldScene"); }
@@ -66,10 +72,10 @@ export function createWorldController({
       const speed = 3.6;
       let dx = 0;
       let dy = 0;
-      if (pressedKeys.has("arrowleft") || pressedKeys.has("a")) dx -= speed;
-      if (pressedKeys.has("arrowright") || pressedKeys.has("d")) dx += speed;
-      if (pressedKeys.has("arrowup") || pressedKeys.has("w")) dy -= speed;
-      if (pressedKeys.has("arrowdown") || pressedKeys.has("s")) dy += speed;
+      if (pressedKeys.has("arrowleft") || pressedKeys.has("a") || heldDirections.has("left")) dx -= speed;
+      if (pressedKeys.has("arrowright") || pressedKeys.has("d") || heldDirections.has("right")) dx += speed;
+      if (pressedKeys.has("arrowup") || pressedKeys.has("w") || heldDirections.has("up")) dy -= speed;
+      if (pressedKeys.has("arrowdown") || pressedKeys.has("s") || heldDirections.has("down")) dy += speed;
       if (dx || dy) move(dx, dy);
     }
   }
@@ -218,6 +224,7 @@ export function createWorldController({
     deactivate() {
       active = false;
       pressedKeys.clear();
+      heldDirections.clear();
       nearbyBuilding = null;
       if (sceneRef) {
         sceneRef.scene.pause();
@@ -231,6 +238,17 @@ export function createWorldController({
       const [dx, dy] = vectors[direction] || [0, 0];
       move(dx, dy);
     },
+    startMoving(direction) {
+      if (!active || !["up", "down", "left", "right"].includes(direction)) return;
+      heldDirections.add(direction);
+      this.moveDirection(direction);
+    },
+    stopMoving(direction) {
+      heldDirections.delete(direction);
+    },
+    stopAllMovement() {
+      heldDirections.clear();
+    },
     enterNearby,
     getPlayerPosition() {
       if (player) return { x: player.x, y: player.y };
@@ -240,6 +258,7 @@ export function createWorldController({
     destroy() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", clearMovement);
       game.destroy(true);
     },
   };
