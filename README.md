@@ -80,8 +80,8 @@ Qwen3-8B and once for MiniCPM-V, if organization GPU access remains unavailable.
 | Source code | [github.com/asanwari/secret-student](https://github.com/asanwari/secret-student) |
 | Codex development history | [Main commit history](https://github.com/asanwari/secret-student/commits/main/) and [`codex/*` branches](https://github.com/asanwari/secret-student/branches/all) |
 | Field notes | [I Built a Pokemon-Inspired AI School Game for My Niece](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6) |
-| Demo video | **Coming soon: add the public two-minute demo URL here** |
-| LinkedIn post | **Coming soon: add the LinkedIn post URL here** |
+| Demo video | [Watch the Secret Student gameplay demo on YouTube](https://youtu.be/sOw0Z8YGeNs?si=F449Jw-N1M8PakhA) |
+| LinkedIn post | [Secret Student launch post on LinkedIn](https://www.linkedin.com/posts/asanwari_i-am-excited-to-share-the-ai-based-game-i-share-7472059176928673792-NtpK/?utm_source=share&utm_medium=member_desktop&rcm=ACoAABLvphoBYCEHypneAStkPtmp_zXb5crlagM) |
 | Open LLM traces | [Secret Student LLM traces on Hugging Face](https://huggingface.co/datasets/asanwari/secret-student-llm-traces) |
 
 > The `achievement:welltuned` tag is intentionally not claimed: the current
@@ -177,7 +177,7 @@ image payloads are replaced with hashes.
 
 | Sponsor | Role in the project |
 | --- | --- |
-| [![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Inference-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/) | NVIDIA GPU hardware runs the public dual-model Space and CUDA-accelerated llama.cpp. |
+| [![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Inference-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/) | NVIDIA GPU hardware runs the public dual-model Space and CUDA-accelerated llama.cpp. NVIDIA Nemotron 3 Nano Omni GGUF was also evaluated as a candidate for the unified text-and-vision deployment before the project adopted its current two-model architecture. |
 | [![Modal](https://img.shields.io/badge/Modal-Optional_GPU_Deployment-111111)](https://modal.com/) | The repository includes a configurable Modal deployment for an external OpenAI-compatible llama.cpp server with persistent model caching. |
 | [![OpenBMB](https://img.shields.io/badge/OpenBMB-MiniCPM--V-7c3aed)](https://huggingface.co/openbmb) | MiniCPM-V is the vision specialist used to read and grade handwritten answers. |
 | [![OpenAI](https://img.shields.io/badge/OpenAI-Codex_Assisted-000000?logo=openai&logoColor=white)](https://openai.com/codex/) | Codex was the coding collaborator throughout implementation, testing, responsive UI work, model infrastructure, and documentation. The evidence is visible in the public commits and `codex/*` branches. |
