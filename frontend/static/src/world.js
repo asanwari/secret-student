@@ -1,5 +1,10 @@
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
+const APPEARANCE_COLORS = {
+  shirt: { red: 0xd94b48, blue: 0x3f71b5, green: 0x4d8d59, yellow: 0xe1b840, purple: 0x765495, teal: 0x398b87 },
+  pants: { navy: 0x263b60, charcoal: 0x3d4148, brown: 0x6f4d3b, olive: 0x5d673f, blue: 0x365f86, plum: 0x61405d },
+  hair: { black: 0x1d2025, dark_brown: 0x3b271f, brown: 0x70462c, blond: 0xc99a45, auburn: 0x8a3f2c },
+};
 
 function isEditableTarget(target) {
   return target instanceof HTMLElement && (
@@ -11,6 +16,7 @@ function isEditableTarget(target) {
 export function createWorldController({
   mountId,
   getPlayerName,
+  getPlayerAppearance,
   onNearbyChange,
   onEnterBuilding,
   initialPlayerPosition = null,
@@ -96,18 +102,35 @@ export function createWorldController({
     const buildings = positions(width, height);
     drawBuilding(scene, buildings.school, 0xe7b34d, 0xc94f46, "SCHOOL", "school");
     drawBuilding(scene, buildings.home, 0xe9955d, 0x6b4d83, "HOME", "home");
-    drawBuilding(scene, buildings.hq, 0x4f7f78, 0x273d52, `${getPlayerName()}'S GRANDMA`, "hq");
+    drawBuilding(scene, buildings.hq, 0x4f7f78, 0x273d52, "GRANDMA", "hq");
     drawTrees(scene, width, height);
 
     player = scene.add.container(
       savedPlayerPosition?.x ?? width / 2,
       savedPlayerPosition?.y ?? height * .5,
     );
-    const shadow = scene.add.ellipse(0, 17, 30, 12, 0x263238, .32);
-    const body = scene.add.rectangle(0, 0, 24, 32, 0xe54b4b).setStrokeStyle(3, 0x17202a);
-    const head = scene.add.rectangle(0, -22, 20, 18, 0xf1bd8b).setStrokeStyle(3, 0x17202a);
-    const bag = scene.add.rectangle(15, 1, 10, 22, 0xf6c945).setStrokeStyle(2, 0x17202a);
-    player.add([shadow, body, head, bag]);
+    const appearance = getPlayerAppearance?.() || {};
+    const shirt = APPEARANCE_COLORS.shirt[appearance.shirt_color] || APPEARANCE_COLORS.shirt.red;
+    const pants = APPEARANCE_COLORS.pants[appearance.pants_color] || APPEARANCE_COLORS.pants.navy;
+    const hair = APPEARANCE_COLORS.hair[appearance.hair_color] || APPEARANCE_COLORS.hair.dark_brown;
+    const shadow = scene.add.ellipse(0, 23, 34, 11, 0x263238, .32);
+    const backpack = scene.add.rectangle(13, -1, 15, 30, 0xd5a637).setStrokeStyle(3, 0x17202a);
+    const backPocket = scene.add.rectangle(17, 4, 7, 12, 0xf0ca58).setStrokeStyle(2, 0x17202a);
+    const leftLeg = scene.add.rectangle(-7, 17, 9, 20, pants).setStrokeStyle(3, 0x17202a);
+    const rightLeg = scene.add.rectangle(7, 17, 9, 20, pants).setStrokeStyle(3, 0x17202a);
+    const leftShoe = scene.add.rectangle(-8, 28, 13, 7, 0x202a35).setStrokeStyle(2, 0x17202a);
+    const rightShoe = scene.add.rectangle(8, 28, 13, 7, 0x202a35).setStrokeStyle(2, 0x17202a);
+    const leftArm = scene.add.rectangle(-16, 0, 8, 25, shirt).setStrokeStyle(3, 0x17202a).setAngle(8);
+    const body = scene.add.rectangle(0, -1, 25, 31, shirt).setStrokeStyle(3, 0x17202a);
+    const collar = scene.add.triangle(0, -11, -7, 0, 7, 0, 0, 7, 0xfff2c6).setStrokeStyle(2, 0x17202a);
+    const rightArm = scene.add.rectangle(16, 0, 8, 25, shirt).setStrokeStyle(3, 0x17202a).setAngle(-8);
+    const neck = scene.add.rectangle(0, -19, 8, 7, 0xe8ae7c).setStrokeStyle(2, 0x17202a);
+    const head = scene.add.rectangle(0, -30, 23, 21, 0xf1bd8b).setStrokeStyle(3, 0x17202a);
+    const hairBack = scene.add.rectangle(0, -36, 25, 11, hair).setStrokeStyle(3, 0x17202a);
+    const hairFringe = scene.add.rectangle(-6, -31, 12, 7, hair);
+    const eyeLeft = scene.add.rectangle(-5, -29, 2, 3, 0x17202a);
+    const eyeRight = scene.add.rectangle(5, -29, 2, 3, 0x17202a);
+    player.add([shadow, backpack, backPocket, leftLeg, rightLeg, leftShoe, rightShoe, leftArm, body, collar, rightArm, neck, head, hairBack, hairFringe, eyeLeft, eyeRight]);
     updateNearby();
   }
 
@@ -135,6 +158,8 @@ export function createWorldController({
     scene.add.rectangle(x, y + height / 2 - 35, 50, 70, 0xfff2c6).setStrokeStyle(4, 0x17202a);
     scene.add.rectangle(x - width * .28, y - 8, 42, 38, 0x9fe1e0).setStrokeStyle(4, 0x17202a);
     scene.add.rectangle(x + width * .28, y - 8, 42, 38, 0x9fe1e0).setStrokeStyle(4, 0x17202a);
+    const signWidth = Math.min(width - 24, Math.max(100, label.length * 14));
+    scene.add.rectangle(x, y - 8, signWidth, 32, 0xfff2c6, .96).setStrokeStyle(3, 0x17202a);
     scene.add.text(x, y - 8, label, {
       fontFamily: "monospace", fontSize: "16px", fontStyle: "bold", color: "#17202a", align: "center",
       wordWrap: { width: width - 30 },

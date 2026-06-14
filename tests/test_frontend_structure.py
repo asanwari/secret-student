@@ -66,3 +66,33 @@ def test_teacher_chat_supports_close_scroll_and_chained_questions():
     assert "teacherChatHistory" in MAIN_JS
     assert "history: priorHistory" in MAIN_JS
     assert "scrollTop = ui.teacherChatMessages.scrollHeight" in MAIN_JS
+
+
+def test_character_customization_is_registered_and_used_by_world():
+    assert 'id="appearanceFields"' in INDEX
+    assert 'name="shirtColor"' in INDEX
+    assert 'name="pantsColor"' in INDEX
+    assert 'name="hairColor"' in INDEX
+    assert "payload.character_appearance = selectedAppearance()" in MAIN_JS
+    assert "getPlayerAppearance" in WORLD_JS
+    assert "APPEARANCE_COLORS" in WORLD_JS
+    assert "backpack" in WORLD_JS
+
+
+def test_quiz_and_boss_wait_for_explicit_progression():
+    assert 'id="nextQuizQuestionButton"' in INDEX
+    assert 'id="nextBossQuestionButton"' in INDEX
+    assert 'id="quizProgressBar"' in INDEX
+    assert 'id="bossProgressBar"' in INDEX
+    assert "advanceQuizAfterFeedback" in MAIN_JS
+    assert "advanceBossAfterFeedback" in MAIN_JS
+    assert "setTimeout(renderQuizQuestion" not in MAIN_JS
+    assert "setTimeout(renderBossQuestion" not in MAIN_JS
+
+
+def test_generated_room_and_character_art_are_wired_with_fallbacks():
+    assert "/game-static/assets/bedroom-agent.png" in (ROOT / "frontend/static/src/styles.css").read_text()
+    assert "/game-static/assets/codename-grandma.png" in INDEX
+    assert "/game-static/assets/villain-default.png" in INDEX
+    assert "safeVillainUrl" in MAIN_JS
+    assert 'drawBuilding(scene, buildings.hq, 0x4f7f78, 0x273d52, "GRANDMA"' in WORLD_JS

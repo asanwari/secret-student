@@ -3,12 +3,15 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import create_engine, inspect, text
 
 from app.api import app
 from app.database import init_db
+import app.database as database_module
 from app.image_validation import validate_image_data_url
 from app.llm_clients import (
     MockLLMClient,
@@ -21,6 +24,7 @@ from app.llm_clients import (
     create_llm_client,
 )
 from app.config import Settings
+from app.schemas import BossMission, LessonPackage
 
 
 PNG_DATA_URL = (
@@ -159,8 +163,6 @@ def test_verification_response_format_is_strict():
 
 
 def test_lesson_count_validation_rejects_short_model_output():
-    from app.schemas import LessonPackage
-
     package = LessonPackage.model_validate(
         {
             "topic": "history",
@@ -396,6 +398,106 @@ def test_register_login_and_duplicate_username():
         assert login.status_code == 200
         assert login.json()["user"]["username"] == username
         assert login.json()["session_token"]
+
+
+def test_character_appearance_defaults_and_custom_palette_persist():
+    init_db()
+    with TestClient(app) as client:
+        default_user = register(client)
+        assert default_user["user"]["character_appearance"] == {
+            "shirt_color": "red",
+            "pants_color": "navy",
+            "hair_color": "dark_brown",
+        }
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "username": unique_username(),
+                "password": "secret123",
+                "learner_level": "Primary school",
+                "character_appearance": {
+                    "shirt_color": "teal",
+                    "pants_color": "plum",
+                    "hair_color": "auburn",
+                },
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["user"]["character_appearance"] == {
+            "shirt_color": "teal",
+            "pants_color": "plum",
+            "hair_color": "auburn",
+        }
+
+
+def test_character_appearance_rejects_unknown_palette_values():
+    init_db()
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "username": unique_username(),
+                "password": "secret123",
+                "learner_level": "Primary school",
+                "character_appearance": {
+                    "shirt_color": "invisible",
+                    "pants_color": "navy",
+                    "hair_color": "dark_brown",
+                },
+            },
+        )
+        assert response.status_code == 422
+
+
+def test_sqlite_upgrade_adds_appearance_and_villain_columns(tmp_path, monkeypatch):
+    database_url = f"sqlite:///{tmp_path / 'legacy.sqlite3'}"
+    legacy_engine = create_engine(database_url)
+    with legacy_engine.begin() as connection:
+        connection.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR(40))"))
+        connection.execute(text("CREATE TABLE lessons (id INTEGER PRIMARY KEY, boss_name VARCHAR(120))"))
+
+    monkeypatch.setattr(database_module, "engine", legacy_engine)
+    monkeypatch.setattr(database_module, "settings", SimpleNamespace(database_url=database_url))
+    database_module._upgrade_sqlite_schema()
+
+    inspector = inspect(legacy_engine)
+    assert {"shirt_color", "pants_color", "hair_color"} <= {
+        column["name"] for column in inspector.get_columns("users")
+    }
+    assert "villain_image_url" in {
+        column["name"] for column in inspector.get_columns("lessons")
+    }
+
+
+def test_lesson_validation_rejects_long_steps_and_missing_media():
+    base = {
+        "topic": "history",
+        "learner_level": "Primary school",
+        "lesson_steps": [
+            {"title": f"Step {index}", "body": "Clear lesson text.", "example": "A concrete example."}
+            for index in range(6)
+        ],
+        "quiz_questions": [],
+        "boss_mission": {"boss_name": "Boss", "briefing": "Briefing", "questions": []},
+    }
+    base["lesson_steps"][0]["body"] = "word " * 151
+    package = LessonPackage.model_validate(base)
+    with pytest.raises(ValueError, match="exceeds 150 words"):
+        _validate_lesson_counts(package, 0, 0)
+
+    base["lesson_steps"][0]["body"] = "Look at the map and identify the location."
+    package = LessonPackage.model_validate(base)
+    with pytest.raises(ValueError, match="unavailable media"):
+        _validate_lesson_counts(package, 0, 0)
+
+
+def test_villain_image_url_accepts_safe_sources_and_drops_unsafe_ones():
+    safe = BossMission(boss_name="Boss", briefing="Brief", questions=[], villain_image_url="https://images.example/villain.png")
+    unsafe = BossMission(boss_name="Boss", briefing="Brief", questions=[], villain_image_url="javascript:alert(1)")
+    assert safe.villain_image_url == "https://images.example/villain.png"
+    assert unsafe.villain_image_url is None
 
 
 def test_full_mock_game_flow_boss_win():

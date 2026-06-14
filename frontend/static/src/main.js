@@ -10,6 +10,7 @@ const ui = {
   registerTab: $("#registerTab"), loginTab: $("#loginTab"), authForm: $("#authForm"),
   username: $("#usernameInput"), password: $("#passwordInput"), level: $("#levelInput"),
   levelLabel: $("#levelLabel"), avatarLabel: $("#avatarLabel"), avatar: $("#avatarInput"),
+  appearanceFields: $("#appearanceFields"),
   cameraTools: $("#cameraTools"), cameraPreview: $("#cameraPreview"), cameraCanvas: $("#cameraCanvas"),
   startCamera: $("#startCameraButton"), captureCamera: $("#captureCameraButton"),
   authSubmit: $("#authSubmitButton"), authStatus: $("#authStatus"), loading: $("#loadingCurtain"), loadingText: $("#loadingText"),
@@ -25,13 +26,18 @@ const ui = {
   teacherFollowup: $("#teacherFollowupInput"),
   newTopic: $("#newTopicButton"), startQuiz: $("#startQuizButton"), schoolStatus: $("#schoolStatus"),
   phone: $("#phoneButton"), desk: $("#deskButton"), bed: $("#bedButton"), homeDialog: $("#homeDialog"),
-  closeHomeDialog: $("#closeHomeDialog"), phoneDialog: $("#phoneDialog"), practicePanel: $("#practicePanel"),
+  closeHomeDialog: $("#closeHomeDialog"), phoneDialog: $("#phoneDialog"), phoneDialogText: $("#phoneDialogText"), practicePanel: $("#practicePanel"),
   practiceSearch: $("#practiceSearchInput"), practiceList: $("#practiceList"), homeStatus: $("#homeStatus"),
   bossName: $("#bossName"), bossBriefing: $("#bossBriefing"), startBoss: $("#startBossButton"),
   quizQuestion: $("#quizQuestionText"), quizAnswer: $("#quizAnswerInput"), quizFeedback: $("#quizFeedback"),
   clearQuiz: $("#clearQuizCanvasButton"), submitQuiz: $("#submitQuizAnswerButton"),
+  nextQuiz: $("#nextQuizQuestionButton"), quizProgress: $("#quizProgressBar"), quizProgressText: $("#quizProgressText"),
+  quizProgressTrack: $("#quizProgressTrack"),
   battleBossName: $("#battleBossName"), battleStats: $("#battleStats"), bossQuestion: $("#bossQuestionText"),
   bossAnswer: $("#bossAnswerInput"), bossFeedback: $("#bossFeedback"), clearBoss: $("#clearBossCanvasButton"), submitBoss: $("#submitBossAnswerButton"),
+  nextBoss: $("#nextBossQuestionButton"), bossProgress: $("#bossProgressBar"),
+  bossProgressTrack: $("#bossProgressTrack"),
+  hqVillain: $("#hqVillainImage"), battleVillain: $("#battleVillainImage"),
 };
 
 const state = {
@@ -40,6 +46,7 @@ const state = {
   avatarDataUrl: null, onboardingIndex: 0,
   worldPosition: null,
   teacherChatKey: null, teacherChatHistory: [],
+  quizIndex: 0, quizPending: null, bossPending: null,
 };
 
 const quizNotebook = createNotebook($("#quizCanvas"));
@@ -52,6 +59,7 @@ function ensureWorld() {
   world = createWorldController({
     mountId: "worldMount",
     getPlayerName: () => state.user?.username || "AGENT",
+    getPlayerAppearance: () => state.user?.character_appearance || selectedAppearance(),
     onNearbyChange: (building) => {
       state.nearbyBuilding = building;
       ui.interact.disabled = !building;
@@ -80,6 +88,7 @@ const router = createScreenRouter({
 });
 
 wireEvents();
+updateCharacterPreview();
 bootstrap();
 
 async function bootstrap() {
@@ -104,6 +113,7 @@ function wireEvents() {
   ui.loginTab.addEventListener("click", () => setAuthMode("login"));
   ui.authForm.addEventListener("submit", submitAuth);
   ui.avatar.addEventListener("change", readAvatar);
+  $$(".color-swatches input").forEach((input) => input.addEventListener("change", updateCharacterPreview));
   ui.startCamera.addEventListener("click", startCamera);
   ui.captureCamera.addEventListener("click", captureCamera);
   ui.continueOnboarding.addEventListener("click", advanceOnboarding);
@@ -130,6 +140,8 @@ function wireEvents() {
   ui.clearBoss.addEventListener("click", bossNotebook.clear);
   ui.submitQuiz.addEventListener("click", submitQuizAnswer);
   ui.submitBoss.addEventListener("click", submitBossAnswer);
+  ui.nextQuiz.addEventListener("click", advanceQuizAfterFeedback);
+  ui.nextBoss.addEventListener("click", advanceBossAfterFeedback);
   ui.quizAnswer.addEventListener("keydown", submitOnEnter(submitQuizAnswer));
   ui.bossAnswer.addEventListener("keydown", submitOnEnter(submitBossAnswer));
 }
@@ -149,6 +161,7 @@ function setAuthMode(mode) {
   ui.loginTab.classList.toggle("active", mode === "login");
   ui.levelLabel.hidden = mode !== "register";
   ui.avatarLabel.hidden = mode !== "register";
+  ui.appearanceFields.hidden = mode !== "register";
   ui.cameraTools.hidden = mode !== "register";
   ui.authSubmit.textContent = mode === "register" ? "Create Agent File" : "Enter Headquarters";
   ui.authStatus.textContent = "";
@@ -160,6 +173,7 @@ async function submitAuth(event) {
   if (state.authMode === "register") {
     payload.learner_level = ui.level.value;
     payload.avatar_image_data_url = state.avatarDataUrl;
+    payload.character_appearance = selectedAppearance();
   }
   setLoading(true, state.authMode === "register" ? "Creating your cover identity..." : "Checking credentials...");
   try {
@@ -374,34 +388,61 @@ function renderTeacherChat() {
 function beginQuiz() {
   if (!state.lesson?.quiz_questions.length) return;
   state.quizQuestion = state.lesson.quiz_questions[0];
+  state.quizIndex = 0;
+  state.quizPending = null;
   renderQuizQuestion();
   router.show("quiz");
   setTimeout(() => ui.quizAnswer.focus(), 0);
 }
 
 function renderQuizQuestion() {
+  const total = state.lesson.quiz_questions.length;
   ui.quizQuestion.textContent = state.quizQuestion.question;
+  ui.quizProgressText.textContent = `Question ${state.quizIndex + 1} of ${total}`;
+  ui.quizProgress.style.width = `${((state.quizIndex + 1) / total) * 100}%`;
+  ui.quizProgressTrack.setAttribute("aria-valuemax", total);
+  ui.quizProgressTrack.setAttribute("aria-valuenow", state.quizIndex + 1);
   ui.quizAnswer.value = "";
   ui.quizFeedback.textContent = "";
+  ui.nextQuiz.hidden = true;
+  setAnswerControls("quiz", false);
   quizNotebook.clear();
 }
 
 async function submitQuizAnswer() {
+  if (state.quizPending) return;
   const payload = answerPayload("quiz", state.quizQuestion, ui.quizAnswer, quizNotebook);
   if (!payload) { ui.quizFeedback.textContent = "Type or draw an answer first."; return; }
   setLoading(true, "Checking your notebook...");
   try {
     const response = await postJson("/api/quiz/submit", payload);
     ui.quizFeedback.textContent = response.result.feedback;
+    state.quizPending = response;
+    setAnswerControls("quiz", true);
     if (response.completed) {
       ui.quizFeedback.textContent += " Quiz complete. Go home for your mission call.";
-      setTimeout(() => goWorld("Head home for your mission briefing."), 1500);
+      ui.nextQuiz.textContent = "Finish Quiz";
     } else {
-      state.quizQuestion = response.next_question;
-      setTimeout(renderQuizQuestion, 700);
+      ui.nextQuiz.textContent = "Next Question";
     }
+    ui.nextQuiz.hidden = false;
   } catch (error) { ui.quizFeedback.textContent = error.message; }
   finally { setLoading(false); }
+}
+
+function advanceQuizAfterFeedback() {
+  if (!state.quizPending) return;
+  if (state.quizPending.completed) {
+    state.quizPending = null;
+    goWorld("Head home for your mission briefing.");
+    return;
+  }
+  state.quizQuestion = state.quizPending.next_question;
+  const nextIndex = state.lesson.quiz_questions.findIndex((question) => question.id === state.quizQuestion.id);
+  state.quizIndex = nextIndex >= 0 ? nextIndex : state.quizIndex + 1;
+  state.quizPending = null;
+  renderQuizQuestion();
+  ui.quizAnswer.focus();
 }
 
 function prepareHome() {
@@ -413,7 +454,7 @@ function showPhone() {
   ui.homeDialog.hidden = false;
   ui.phoneDialog.hidden = false;
   ui.practicePanel.hidden = true;
-  ui.phoneDialog.textContent = state.lesson
+  ui.phoneDialogText.textContent = state.lesson
     ? `Agent, ${state.lesson.boss_mission.boss_name} is attacking everything connected to ${state.lesson.topic}. Practice if needed, then report to Grandma's House.`
     : "No mission yet. Your next assignment begins at School.";
 }
@@ -451,6 +492,7 @@ function prepareHq() {
   ui.bossName.textContent = state.lesson?.boss_mission.boss_name || "No boss detected";
   ui.bossBriefing.textContent = state.lesson?.boss_mission.briefing || "Complete a lesson before opening the vault.";
   ui.startBoss.disabled = !state.lesson;
+  setVillainImage(ui.hqVillain, state.lesson?.boss_mission.villain_image_url);
 }
 
 async function beginBoss() {
@@ -459,6 +501,7 @@ async function beginBoss() {
   try {
     state.bossState = await postJson("/api/boss/start", { lesson_id: state.lesson.id });
     state.bossQuestion = state.bossState.question;
+    state.bossPending = null;
     renderBossQuestion();
     router.show("boss");
     setTimeout(() => ui.bossAnswer.focus(), 0);
@@ -469,13 +512,20 @@ async function beginBoss() {
 function renderBossQuestion() {
   ui.battleBossName.textContent = state.bossState.boss_name;
   ui.battleStats.textContent = `Question ${state.bossState.question_index}/${state.bossState.total_questions} | Mistakes left: ${state.bossState.mistakes_remaining}`;
+  ui.bossProgress.style.width = `${(state.bossState.question_index / state.bossState.total_questions) * 100}%`;
+  ui.bossProgressTrack.setAttribute("aria-valuemax", state.bossState.total_questions);
+  ui.bossProgressTrack.setAttribute("aria-valuenow", state.bossState.question_index);
+  setVillainImage(ui.battleVillain, state.lesson?.boss_mission.villain_image_url);
   ui.bossQuestion.textContent = state.bossQuestion.question;
   ui.bossAnswer.value = "";
   ui.bossFeedback.textContent = "";
+  ui.nextBoss.hidden = true;
+  setAnswerControls("boss", false);
   bossNotebook.clear();
 }
 
 async function submitBossAnswer() {
+  if (state.bossPending) return;
   const payload = answerPayload("boss", state.bossQuestion, ui.bossAnswer, bossNotebook);
   if (!payload) { ui.bossFeedback.textContent = "Transmit an answer first."; return; }
   setLoading(true, "Resolving attack...");
@@ -483,18 +533,59 @@ async function submitBossAnswer() {
     const response = await postJson("/api/boss/submit", payload);
     ui.bossFeedback.textContent = response.result.feedback;
     state.bossState = response;
+    state.bossPending = response;
+    setAnswerControls("boss", true);
     if (response.defeated) {
       ui.bossFeedback.textContent += " Mission complete. The world is safe.";
-      setTimeout(() => goWorld("Mission complete. School is ready for a new topic."), 1800);
+      ui.nextBoss.textContent = "Complete Mission";
     } else if (response.lost) {
       ui.bossFeedback.textContent += " Retreat home and rest before trying again.";
-      setTimeout(() => goWorld("Return home to recover."), 1800);
+      ui.nextBoss.textContent = "Retreat";
     } else {
-      state.bossQuestion = response.question;
-      setTimeout(renderBossQuestion, 700);
+      ui.nextBoss.textContent = response.question?.id === state.bossQuestion?.id ? "Try Again" : "Next Question";
     }
+    ui.nextBoss.hidden = false;
   } catch (error) { ui.bossFeedback.textContent = error.message; }
   finally { setLoading(false); }
+}
+
+function advanceBossAfterFeedback() {
+  if (!state.bossPending) return;
+  if (state.bossPending.defeated) {
+    state.bossPending = null;
+    goWorld("Mission complete. School is ready for a new topic.");
+    return;
+  }
+  if (state.bossPending.lost) {
+    state.bossPending = null;
+    goWorld("Return home to recover.");
+    return;
+  }
+  state.bossQuestion = state.bossPending.question;
+  state.bossPending = null;
+  renderBossQuestion();
+  ui.bossAnswer.focus();
+}
+
+function setAnswerControls(mode, locked) {
+  const controls = mode === "quiz"
+    ? [ui.quizAnswer, ui.clearQuiz, ui.submitQuiz]
+    : [ui.bossAnswer, ui.clearBoss, ui.submitBoss];
+  controls.forEach((control) => { control.disabled = locked; });
+  const canvas = mode === "quiz" ? $("#quizCanvas") : $("#bossCanvas");
+  canvas.classList.toggle("locked", locked);
+}
+
+function safeVillainUrl(value) {
+  if (!value) return "/game-static/assets/villain-default.png";
+  if (value.startsWith("/game-static/assets/") || value.startsWith("https://")) return value;
+  return "/game-static/assets/villain-default.png";
+}
+
+function setVillainImage(image, value) {
+  const fallback = "/game-static/assets/villain-default.png";
+  image.onerror = () => { image.onerror = null; image.src = fallback; };
+  image.src = safeVillainUrl(value);
 }
 
 function answerPayload(mode, question, input, notebook) {
@@ -510,10 +601,26 @@ function hydratePersistentUi() {
   ui.activeMission.textContent = state.lesson?.topic || state.gameState?.active_topic || "Find a lesson";
 }
 
+function selectedAppearance() {
+  return {
+    shirt_color: $('input[name="shirtColor"]:checked')?.value || "red",
+    pants_color: $('input[name="pantsColor"]:checked')?.value || "navy",
+    hair_color: $('input[name="hairColor"]:checked')?.value || "dark_brown",
+  };
+}
+
+function updateCharacterPreview() {
+  const preview = $(".character-preview");
+  const appearance = selectedAppearance();
+  preview.dataset.shirt = appearance.shirt_color;
+  preview.dataset.pants = appearance.pants_color;
+  preview.dataset.hair = appearance.hair_color;
+}
+
 function buildingLabel(kind) {
   if (kind === "school") return "School";
   if (kind === "home") return "Home";
-  return `${state.user?.username || "Agent"}'s Grandma's House`;
+  return "Grandma";
 }
 
 async function readAvatar() {

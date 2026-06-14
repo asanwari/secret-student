@@ -89,6 +89,21 @@ class MockLLMClient(LLMClient):
                 body="A Secret Student always checks the answer before reporting back.",
                 example="If the mission says 4 + 1, count 4 then 1 more: 5.",
             ),
+            LessonStep(
+                title="Explain the clue",
+                body="Say why your method works using the key idea from the lesson.",
+                example="I combined the two groups, so the total is the sum of both groups.",
+            ),
+            LessonStep(
+                title="Avoid the trap",
+                body="Check the operation, units, and important vocabulary before choosing an answer.",
+                example="A careful agent answers the exact question instead of a nearby one.",
+            ),
+            LessonStep(
+                title="Mission recap",
+                body=f"Recall the main idea of {clean_topic}, one useful method, and one way to check the result.",
+                example="You are ready when you can solve a small example without hints.",
+            ),
         ]
         quiz = [
             _mock_question(clean_topic, index, "easy")
@@ -167,7 +182,11 @@ class OpenAICompatibleLLMClient(LLMClient):
             "For every question, answer_type must be exactly 'numeric' or 'text'. "
             "expected_answer and every acceptable_answers item must always be JSON strings, even for numbers. "
             "Every question must include all listed fields. Use difficulty easy or medium for quizzes and hard for bosses. "
-            f"Create 6 to 10 short lesson steps, exactly {quiz_count} quiz questions, and exactly {boss_count} harder boss questions. "
+            "Create a coherent teaching sequence: introduction, core explanation, guided example, deeper practice, recap, then quiz preparation. "
+            "Each step's body plus example must be substantial but concise, usually 60 to 120 words and never more than 150 words, with vocabulary and examples appropriate for the learner level. "
+            "The experience is text-only: never tell the learner to look at or use an image, map, chart, diagram, video, worksheet, book, object, or other material that is not included in the step text. "
+            "Every quiz and boss question must be answerable from the lesson. Prefer numeric answers or short canonical text answers whenever the topic permits; never ask for opinions, drawings, visual identification, or open-ended discussion. "
+            f"Create 6 to 10 lesson steps, exactly {quiz_count} quiz questions, and exactly {boss_count} harder boss questions. "
             f"Topic: {topic}. Learner level: {learner_level}."
         )
 
@@ -189,6 +208,7 @@ class OpenAICompatibleLLMClient(LLMClient):
                 "Preserve usable lesson content, correct factual mistakes, and fill every missing field. "
                 f"Return exactly {quiz_count} quiz questions and exactly {boss_count} boss questions. "
                 "Do not leave any question without an answer_type and expected_answer. "
+                "Keep a coherent teaching sequence, keep every step at 150 words or fewer, remove references to unavailable media or materials, and make every question concrete and answerable from the lesson. "
                 f"Validation errors: {json.dumps(compact_errors, ensure_ascii=True)}. "
                 f"Invalid JSON: {json.dumps(invalid_data, ensure_ascii=True)}"
             )
@@ -513,6 +533,28 @@ def _validate_lesson_counts(
             f"boss_mission.questions must contain exactly {boss_count} items; "
             f"received {len(package.boss_mission.questions)}"
         )
+    unavailable_patterns = (
+        r"\b(?:look at|study|inspect|use|refer to|based on) (?:the |this |a )?(?:image|picture|map|chart|diagram|video|worksheet|book|object)\b",
+        r"\b(?:shown|pictured|illustrated) (?:above|below|here)\b",
+    )
+    for index, step in enumerate(package.lesson_steps):
+        word_count = len(re.findall(r"\b[\w'-]+\b", f"{step.body} {step.example}"))
+        if word_count > 150:
+            errors.append(f"lesson_steps[{index}] exceeds 150 words; received {word_count}")
+        content = f"{step.body} {step.example}".lower()
+        if any(re.search(pattern, content) for pattern in unavailable_patterns):
+            errors.append(f"lesson_steps[{index}] references unavailable media or materials")
+    vague_stems = ("what do you think", "how do you feel", "discuss ", "draw ", "look at ")
+    for path, questions in (
+        ("quiz_questions", package.quiz_questions),
+        ("boss_mission.questions", package.boss_mission.questions),
+    ):
+        for index, question in enumerate(questions):
+            lowered = question.question.strip().lower()
+            if any(stem in lowered for stem in vague_stems):
+                errors.append(f"{path}[{index}] is not a concrete text-only question")
+            if question.answer_type == "text" and len(question.expected_answer.split()) > 20:
+                errors.append(f"{path}[{index}] expected text answer is not short and canonical")
     if errors:
         raise ValueError("; ".join(errors))
 

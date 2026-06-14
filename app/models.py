@@ -21,6 +21,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     learner_level: Mapped[str] = mapped_column(String(80))
     avatar_image_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    shirt_color: Mapped[str] = mapped_column(String(20), default="red")
+    pants_color: Mapped[str] = mapped_column(String(20), default="navy")
+    hair_color: Mapped[str] = mapped_column(String(20), default="dark_brown")
     current_day: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -63,6 +66,7 @@ class Lesson(Base):
     boss_questions: Mapped[list] = mapped_column(JSON)
     boss_name: Mapped[str] = mapped_column(String(120))
     boss_briefing: Mapped[str] = mapped_column(Text)
+    villain_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="lesson_ready")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(

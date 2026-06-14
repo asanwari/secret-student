@@ -32,6 +32,37 @@
                 <option>Middle school</option><option>High school</option><option>Custom beginner</option>
               </select>
             </label>
+            <fieldset id="appearanceFields" class="appearance-fields">
+              <legend>Build your student agent</legend>
+              <div class="character-preview" aria-label="Student character preview">
+                <div class="preview-backpack"></div><div class="preview-hair"></div><div class="preview-head"></div>
+                <div class="preview-arm left"></div><div class="preview-shirt"></div><div class="preview-arm right"></div>
+                <div class="preview-pants"></div><div class="preview-leg left"></div><div class="preview-leg right"></div>
+              </div>
+              <div class="swatch-section"><span>Shirt</span><div class="color-swatches" data-preview-color="shirt">
+                <label><input type="radio" name="shirtColor" value="red" checked /><i style="--swatch:#d94b48"></i><span>Red</span></label>
+                <label><input type="radio" name="shirtColor" value="blue" /><i style="--swatch:#3f71b5"></i><span>Blue</span></label>
+                <label><input type="radio" name="shirtColor" value="green" /><i style="--swatch:#4d8d59"></i><span>Green</span></label>
+                <label><input type="radio" name="shirtColor" value="yellow" /><i style="--swatch:#e1b840"></i><span>Yellow</span></label>
+                <label><input type="radio" name="shirtColor" value="purple" /><i style="--swatch:#765495"></i><span>Purple</span></label>
+                <label><input type="radio" name="shirtColor" value="teal" /><i style="--swatch:#398b87"></i><span>Teal</span></label>
+              </div></div>
+              <div class="swatch-section"><span>Pants</span><div class="color-swatches" data-preview-color="pants">
+                <label><input type="radio" name="pantsColor" value="navy" checked /><i style="--swatch:#263b60"></i><span>Navy</span></label>
+                <label><input type="radio" name="pantsColor" value="charcoal" /><i style="--swatch:#3d4148"></i><span>Charcoal</span></label>
+                <label><input type="radio" name="pantsColor" value="brown" /><i style="--swatch:#6f4d3b"></i><span>Brown</span></label>
+                <label><input type="radio" name="pantsColor" value="olive" /><i style="--swatch:#5d673f"></i><span>Olive</span></label>
+                <label><input type="radio" name="pantsColor" value="blue" /><i style="--swatch:#365f86"></i><span>Blue</span></label>
+                <label><input type="radio" name="pantsColor" value="plum" /><i style="--swatch:#61405d"></i><span>Plum</span></label>
+              </div></div>
+              <div class="swatch-section"><span>Hair</span><div class="color-swatches" data-preview-color="hair">
+                <label><input type="radio" name="hairColor" value="black" /><i style="--swatch:#1d2025"></i><span>Black</span></label>
+                <label><input type="radio" name="hairColor" value="dark_brown" checked /><i style="--swatch:#3b271f"></i><span>Dark brown</span></label>
+                <label><input type="radio" name="hairColor" value="brown" /><i style="--swatch:#70462c"></i><span>Brown</span></label>
+                <label><input type="radio" name="hairColor" value="blond" /><i style="--swatch:#c99a45"></i><span>Blond</span></label>
+                <label><input type="radio" name="hairColor" value="auburn" /><i style="--swatch:#8a3f2c"></i><span>Auburn</span></label>
+              </div></div>
+            </fieldset>
             <label id="avatarLabel">Agent photo<input id="avatarInput" type="file" accept="image/*" /></label>
             <div id="cameraTools" class="camera-tools">
               <video id="cameraPreview" playsinline muted hidden></video>
@@ -48,7 +79,7 @@
       </section>
 
       <section id="screen-onboarding" class="game-screen onboarding-screen" data-screen="onboarding" hidden>
-        <div class="grandma-portrait" aria-hidden="true"><span>G</span></div>
+        <div class="grandma-portrait"><img src="/game-static/assets/codename-grandma.png" alt="Codename Grandma, your detective handler" /></div>
         <div class="dialogue-box">
           <p class="eyebrow">Incoming encrypted message</p>
           <h2>Codename Grandma</h2>
@@ -121,13 +152,15 @@
       <section id="screen-home" class="game-screen home-screen" data-screen="home" hidden>
         <button class="back-button" data-back-to-world type="button">Back to Map</button>
         <header class="scene-title"><p class="eyebrow">Home base</p><h2>Your Bedroom</h2></header>
-        <div class="bedroom-window" aria-hidden="true"><div class="moon"></div></div>
-        <button id="bedButton" class="room-object bed-object" type="button"><span>Rest</span></button>
-        <button id="phoneButton" class="room-object phone-object" type="button"><span>Secret Phone</span></button>
-        <button id="deskButton" class="room-object desk-object" type="button"><span>Practice Desk</span></button>
+        <button id="bedButton" class="room-hotspot bed-hotspot" type="button"><span>Rest</span></button>
+        <button id="phoneButton" class="room-hotspot phone-hotspot" type="button"><span>Secret Phone</span></button>
+        <button id="deskButton" class="room-hotspot desk-hotspot" type="button"><span>Practice Desk</span></button>
         <div id="homeDialog" class="room-dialog" hidden>
           <button id="closeHomeDialog" class="dialog-close" type="button" aria-label="Close">X</button>
-          <div id="phoneDialog" hidden></div>
+          <div id="phoneDialog" class="phone-dialog" hidden>
+            <img src="/game-static/assets/codename-grandma.png" alt="Codename Grandma" />
+            <div><p class="eyebrow">Encrypted call</p><h2>Codename Grandma</h2><p id="phoneDialogText" class="comic-bubble"></p></div>
+          </div>
           <div id="practicePanel" hidden>
             <label>Search notes<input id="practiceSearchInput" placeholder="Search lessons and questions" /></label>
             <div id="practiceList" class="practice-list"></div>
@@ -140,6 +173,7 @@
         <button class="back-button" data-back-to-world type="button">Back to Map</button>
         <header class="scene-title light"><p class="eyebrow">Definitely just Grandma's house</p><h2>Secret Headquarters</h2></header>
         <div class="hq-console">
+          <img id="hqVillainImage" class="hq-villain-image" src="/game-static/assets/villain-default.png" alt="Mission villain" />
           <div class="console-lights" aria-hidden="true"><i></i><i></i><i></i></div>
           <p class="eyebrow">Mission target</p>
           <h2 id="bossName">No boss detected</h2>
@@ -152,7 +186,7 @@
       <section id="screen-quiz" class="game-screen answer-screen quiz-screen" data-screen="quiz" hidden>
         <button class="back-button dark" data-answer-exit type="button">Leave Quiz</button>
         <div class="notebook-page">
-          <header><p class="eyebrow">School notebook</p><h2 id="quizQuestionText"></h2></header>
+          <header><p class="eyebrow">School notebook</p><p id="quizProgressText" class="question-count">Question 1 of 1</p><div id="quizProgressTrack" class="progress-track" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><span id="quizProgressBar"></span></div><h2 id="quizQuestionText"></h2></header>
           <label>Type your answer<input id="quizAnswerInput" autocomplete="off" /></label>
           <canvas id="quizCanvas" width="720" height="330"></canvas>
           <div class="button-row">
@@ -160,14 +194,16 @@
             <button id="submitQuizAnswerButton" type="button" class="button primary">Submit Answer</button>
           </div>
           <p id="quizFeedback" class="feedback-line"></p>
+          <button id="nextQuizQuestionButton" type="button" class="button quiz-button" hidden>Next Question</button>
         </div>
       </section>
 
       <section id="screen-boss" class="game-screen answer-screen boss-screen" data-screen="boss" hidden>
         <button class="back-button dark" data-answer-exit type="button">Retreat</button>
         <div class="boss-stage">
-          <div class="boss-silhouette" aria-hidden="true"><span>?</span></div>
+          <img id="battleVillainImage" class="boss-portrait" src="/game-static/assets/villain-default.png" alt="Mission villain" />
           <div class="battle-header"><p class="eyebrow">Boss battle</p><h2 id="battleBossName">Unknown Boss</h2><p id="battleStats"></p></div>
+          <div id="bossProgressTrack" class="progress-track boss-progress" role="progressbar" aria-label="Boss battle progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"><span id="bossProgressBar"></span></div>
         </div>
         <div class="battle-console">
           <h2 id="bossQuestionText"></h2>
@@ -178,6 +214,7 @@
             <button id="submitBossAnswerButton" type="button" class="button danger">Attack</button>
           </div>
           <p id="bossFeedback" class="feedback-line"></p>
+          <button id="nextBossQuestionButton" type="button" class="button danger" hidden>Next Question</button>
         </div>
       </section>
 

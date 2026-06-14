@@ -17,6 +17,7 @@ from app.schemas import (
     AskTeacherResponse,
     AuthResponse,
     BossMission,
+    CharacterAppearance,
     BossStartRequest,
     BossStartResponse,
     BossSubmitResponse,
@@ -86,6 +87,9 @@ async def register(
         password_hash=hash_password(request.password),
         learner_level=request.learner_level,
         avatar_image_path=avatar_path,
+        shirt_color=request.character_appearance.shirt_color,
+        pants_color=request.character_appearance.pants_color,
+        hair_color=request.character_appearance.hair_color,
     )
     db.add(user)
     db.flush()
@@ -183,6 +187,7 @@ async def start_lesson(
         ],
         boss_name=package.boss_mission.boss_name,
         boss_briefing=package.boss_mission.briefing,
+        villain_image_url=package.boss_mission.villain_image_url,
         status="lesson_ready",
     )
     db.add(lesson)
@@ -429,6 +434,11 @@ def _user_response(user: User) -> UserResponse:
         username=user.username,
         learner_level=user.learner_level,
         avatar_image_path=user.avatar_image_path,
+        character_appearance=CharacterAppearance(
+            shirt_color=user.shirt_color or "red",
+            pants_color=user.pants_color or "navy",
+            hair_color=user.hair_color or "dark_brown",
+        ),
         current_day=user.current_day,
     )
 
@@ -456,6 +466,7 @@ def _lesson_response(lesson: Lesson) -> LessonResponse:
             boss_name=lesson.boss_name,
             briefing=lesson.boss_briefing,
             questions=boss_questions,
+            villain_image_url=lesson.villain_image_url,
         ),
         status=lesson.status,
     )

@@ -2,11 +2,20 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 AnswerType = Literal["numeric", "text"]
 AttemptMode = Literal["quiz", "practice", "boss"]
+ShirtColor = Literal["red", "blue", "green", "yellow", "purple", "teal"]
+PantsColor = Literal["navy", "charcoal", "brown", "olive", "blue", "plum"]
+HairColor = Literal["black", "dark_brown", "brown", "blond", "auburn"]
+
+
+class CharacterAppearance(BaseModel):
+    shirt_color: ShirtColor = "red"
+    pants_color: PantsColor = "navy"
+    hair_color: HairColor = "dark_brown"
 
 
 class LessonStep(BaseModel):
@@ -30,6 +39,16 @@ class BossMission(BaseModel):
     boss_name: str
     briefing: str
     questions: list[Question]
+    villain_image_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("villain_image_url")
+    @classmethod
+    def allow_safe_villain_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if value.startswith("https://") or value.startswith("/game-static/assets/"):
+            return value
+        return None
 
 
 class LessonPackage(BaseModel):
@@ -52,6 +71,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=4, max_length=200)
     learner_level: str = Field(min_length=1, max_length=80)
     avatar_image_data_url: str | None = Field(default=None, min_length=32)
+    character_appearance: CharacterAppearance = Field(default_factory=CharacterAppearance)
 
 
 class LoginRequest(BaseModel):
@@ -73,6 +93,7 @@ class UserResponse(BaseModel):
     username: str
     learner_level: str
     avatar_image_path: str | None
+    character_appearance: CharacterAppearance
     current_day: int
 
 
