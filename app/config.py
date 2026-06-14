@@ -44,6 +44,12 @@ class Settings:
     llm_api_key: str = ""
     llm_model: str = "openbmb/MiniCPM-V-4.6"
     llm_enable_thinking: bool = False
+    trace_destination: str = "local"
+    trace_dir: str = "debug_traces"
+    trace_hub_repo_id: str = ""
+    trace_hub_token: str = ""
+    trace_hub_private: bool = True
+    trace_hub_include_content: bool = False
     quiz_question_count: int = 5
     boss_question_count: int = 10
     boss_max_mistakes: int = 3
@@ -70,9 +76,16 @@ def get_settings() -> Settings:
         llm_api_key=os.getenv("LLM_API_KEY", "").strip(),
         llm_model=os.getenv("LLM_MODEL", Settings.llm_model).strip(),
         llm_enable_thinking=_read_bool("LLM_ENABLE_THINKING", False),
+        trace_destination=os.getenv("TRACE_DESTINATION", Settings.trace_destination)
+        .strip()
+        .lower(),
+        trace_dir=os.getenv("TRACE_DIR", Settings.trace_dir).strip(),
+        trace_hub_repo_id=os.getenv("TRACE_HUB_REPO_ID", "").strip(),
+        trace_hub_token=os.getenv("TRACE_HUB_TOKEN", "").strip(),
+        trace_hub_private=_read_bool("TRACE_HUB_PRIVATE", True),
+        trace_hub_include_content=_read_bool("TRACE_HUB_INCLUDE_CONTENT", False),
         quiz_question_count=_read_int("QUIZ_QUESTION_COUNT", Settings.quiz_question_count),
         boss_question_count=_read_int("BOSS_QUESTION_COUNT", Settings.boss_question_count),
         boss_max_mistakes=_read_int("BOSS_MAX_MISTAKES", Settings.boss_max_mistakes),
         cors_origins=cors_origins,
     )
-

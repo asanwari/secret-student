@@ -155,6 +155,11 @@ async def start_lesson(
             user.learner_level,
             settings.quiz_question_count,
             settings.boss_question_count,
+            trace_context={
+                "user_id": user.id,
+                "topic": request.topic,
+                "learner_level": user.learner_level,
+            },
         )
     except Exception as exc:
         logger.exception("Lesson package generation failed.")
@@ -218,6 +223,8 @@ async def ask_teacher(
             [LessonStep.model_validate(step) for step in lesson.lesson_steps],
             request.step_index,
             request.question,
+            request.history,
+            trace_context={"user_id": user.id, "lesson_id": lesson.id},
         )
     except Exception:
         # A teacher follow-up should never block the playable loop in demo mode.
@@ -478,7 +485,11 @@ async def _verify_answer(
     image_data_url = validate_image_data_url(request.image_data_url)
     image_path = save_submitted_image(user_id, question, image_data_url)
     try:
-        return await llm_client.verify_drawn_answer(question, image_data_url), image_path
+        return await llm_client.verify_drawn_answer(
+            question,
+            image_data_url,
+            trace_context={"user_id": user_id, "question_id": question.id},
+        ), image_path
     except Exception as exc:
         logger.exception("Vision answer verification failed.")
         raise HTTPException(status_code=502, detail=f"Answer verification failed: {exc}") from exc

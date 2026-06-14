@@ -1,651 +1,145 @@
-const API_BASE = "";
-const WORLD_WIDTH = 760;
-const WORLD_HEIGHT = 560;
+import { getJson, postJson } from "./api.js";
+import { createNotebook } from "./notebook.js";
+import { createScreenRouter } from "./router.js";
+import { createWorldController } from "./world.js";
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 const ui = {
-  overlay: document.querySelector("#overlay"),
-  panelTitle: document.querySelector("#panelTitle"),
-  statusText: document.querySelector("#statusText"),
-  authPanel: document.querySelector("#authPanel"),
-  worldPanel: document.querySelector("#worldPanel"),
-  schoolPanel: document.querySelector("#schoolPanel"),
-  homePanel: document.querySelector("#homePanel"),
-  hqPanel: document.querySelector("#hqPanel"),
-  answerPanel: document.querySelector("#answerPanel"),
-  registerTab: document.querySelector("#registerTab"),
-  loginTab: document.querySelector("#loginTab"),
-  authForm: document.querySelector("#authForm"),
-  usernameInput: document.querySelector("#usernameInput"),
-  passwordInput: document.querySelector("#passwordInput"),
-  levelInput: document.querySelector("#levelInput"),
-  levelLabel: document.querySelector("#levelLabel"),
-  avatarLabel: document.querySelector("#avatarLabel"),
-  avatarInput: document.querySelector("#avatarInput"),
-  cameraTools: document.querySelector("#cameraTools"),
-  startCameraButton: document.querySelector("#startCameraButton"),
-  captureCameraButton: document.querySelector("#captureCameraButton"),
-  cameraPreview: document.querySelector("#cameraPreview"),
-  cameraCanvas: document.querySelector("#cameraCanvas"),
-  authSubmitButton: document.querySelector("#authSubmitButton"),
-  agentName: document.querySelector("#agentName"),
-  agentLevel: document.querySelector("#agentLevel"),
-  activeMission: document.querySelector("#activeMission"),
-  interactButton: document.querySelector("#interactButton"),
-  logoutButton: document.querySelector("#logoutButton"),
-  lessonForm: document.querySelector("#lessonForm"),
-  topicInput: document.querySelector("#topicInput"),
-  lessonReader: document.querySelector("#lessonReader"),
-  lessonStepTitle: document.querySelector("#lessonStepTitle"),
-  lessonStepBody: document.querySelector("#lessonStepBody"),
-  lessonStepExample: document.querySelector("#lessonStepExample"),
-  prevStepButton: document.querySelector("#prevStepButton"),
-  nextStepButton: document.querySelector("#nextStepButton"),
-  teacherQuestionForm: document.querySelector("#teacherQuestionForm"),
-  teacherQuestionInput: document.querySelector("#teacherQuestionInput"),
-  teacherAnswer: document.querySelector("#teacherAnswer"),
-  startQuizButton: document.querySelector("#startQuizButton"),
-  phoneButton: document.querySelector("#phoneButton"),
-  deskButton: document.querySelector("#deskButton"),
-  bedButton: document.querySelector("#bedButton"),
-  phoneDialog: document.querySelector("#phoneDialog"),
-  practicePanel: document.querySelector("#practicePanel"),
-  practiceSearchInput: document.querySelector("#practiceSearchInput"),
-  practiceList: document.querySelector("#practiceList"),
-  bossName: document.querySelector("#bossName"),
-  bossBriefing: document.querySelector("#bossBriefing"),
-  startBossButton: document.querySelector("#startBossButton"),
-  questionModeLabel: document.querySelector("#questionModeLabel"),
-  questionText: document.querySelector("#questionText"),
-  battleStats: document.querySelector("#battleStats"),
-  answerInput: document.querySelector("#answerInput"),
-  answerCanvas: document.querySelector("#answerCanvas"),
-  clearCanvasButton: document.querySelector("#clearCanvasButton"),
-  submitAnswerButton: document.querySelector("#submitAnswerButton"),
-  feedbackText: document.querySelector("#feedbackText"),
+  registerTab: $("#registerTab"), loginTab: $("#loginTab"), authForm: $("#authForm"),
+  username: $("#usernameInput"), password: $("#passwordInput"), level: $("#levelInput"),
+  levelLabel: $("#levelLabel"), avatarLabel: $("#avatarLabel"), avatar: $("#avatarInput"),
+  cameraTools: $("#cameraTools"), cameraPreview: $("#cameraPreview"), cameraCanvas: $("#cameraCanvas"),
+  startCamera: $("#startCameraButton"), captureCamera: $("#captureCameraButton"),
+  authSubmit: $("#authSubmitButton"), authStatus: $("#authStatus"), loading: $("#loadingCurtain"), loadingText: $("#loadingText"),
+  onboardingText: $("#onboardingText"), continueOnboarding: $("#continueOnboardingButton"),
+  agentName: $("#agentName"), activeMission: $("#activeMission"), logout: $("#logoutButton"),
+  worldPrompt: $("#worldPrompt"), interact: $("#interactButton"),
+  lessonForm: $("#lessonForm"), topic: $("#topicInput"), lessonReader: $("#lessonReader"),
+  lessonProgress: $("#lessonProgress"), lessonTitle: $("#lessonStepTitle"), lessonBody: $("#lessonStepBody"),
+  lessonExample: $("#lessonStepExample"), previousStep: $("#prevStepButton"), nextStep: $("#nextStepButton"),
+  teacherForm: $("#teacherQuestionForm"), teacherQuestion: $("#teacherQuestionInput"),
+  teacherChat: $("#teacherChat"), teacherChatMessages: $("#teacherChatMessages"),
+  closeTeacherChat: $("#closeTeacherChat"), teacherFollowupForm: $("#teacherFollowupForm"),
+  teacherFollowup: $("#teacherFollowupInput"),
+  newTopic: $("#newTopicButton"), startQuiz: $("#startQuizButton"), schoolStatus: $("#schoolStatus"),
+  phone: $("#phoneButton"), desk: $("#deskButton"), bed: $("#bedButton"), homeDialog: $("#homeDialog"),
+  closeHomeDialog: $("#closeHomeDialog"), phoneDialog: $("#phoneDialog"), practicePanel: $("#practicePanel"),
+  practiceSearch: $("#practiceSearchInput"), practiceList: $("#practiceList"), homeStatus: $("#homeStatus"),
+  bossName: $("#bossName"), bossBriefing: $("#bossBriefing"), startBoss: $("#startBossButton"),
+  quizQuestion: $("#quizQuestionText"), quizAnswer: $("#quizAnswerInput"), quizFeedback: $("#quizFeedback"),
+  clearQuiz: $("#clearQuizCanvasButton"), submitQuiz: $("#submitQuizAnswerButton"),
+  battleBossName: $("#battleBossName"), battleStats: $("#battleStats"), bossQuestion: $("#bossQuestionText"),
+  bossAnswer: $("#bossAnswerInput"), bossFeedback: $("#bossFeedback"), clearBoss: $("#clearBossCanvasButton"), submitBoss: $("#submitBossAnswerButton"),
 };
 
 const state = {
-  mode: "auth",
-  authMode: "register",
-  user: null,
-  gameState: null,
-  latestLesson: null,
-  currentStepIndex: 0,
-  currentQuestion: null,
-  currentAnswerMode: "quiz",
-  boss: null,
-  nearbyBuilding: null,
-  busy: false,
-  avatarImageDataUrl: null,
+  authMode: "register", user: null, gameState: null, lesson: null, lessonStep: 0,
+  nearbyBuilding: null, quizQuestion: null, bossQuestion: null, bossState: null,
+  avatarDataUrl: null, onboardingIndex: 0,
+  worldPosition: null,
+  teacherChatKey: null, teacherChatHistory: [],
 };
 
-// The Phaser scene only owns the game-like spaces: world movement and room art.
-// DOM panels own forms and API controls because they are easier to iterate.
-class SecretStudentScene extends Phaser.Scene {
-  constructor() {
-    super("SecretStudentScene");
-    this.player = null;
-    this.cursors = null;
-    this.buildingLabels = [];
-  }
+const quizNotebook = createNotebook($("#quizCanvas"));
+const bossNotebook = createNotebook($("#bossCanvas"));
 
-  create() {
-    this.cameras.main.setBackgroundColor("#7dcfb6");
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd = this.input.keyboard.addKeys("W,A,S,D,SPACE,ENTER");
-    this.drawWorld();
-    this.input.keyboard.on("keydown-SPACE", () => interactWithNearby());
-    this.input.keyboard.on("keydown-ENTER", () => interactWithNearby());
-  }
+let world = null;
 
-  update() {
-    if (!this.player || state.mode !== "world") return;
-    const speed = 3.1;
-    let dx = 0;
-    let dy = 0;
-    if (this.cursors.left.isDown || this.wasd.A.isDown) dx -= speed;
-    if (this.cursors.right.isDown || this.wasd.D.isDown) dx += speed;
-    if (this.cursors.up.isDown || this.wasd.W.isDown) dy -= speed;
-    if (this.cursors.down.isDown || this.wasd.S.isDown) dy += speed;
-    movePlayer(dx, dy);
-  }
-
-  drawWorld() {
-    this.clearScene();
-    state.mode = "world";
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0x7dcfb6);
-    drawGrid(this, 40, 0x64b6ac);
-    this.add.rectangle(380, 286, 650, 92, 0xe9c46a).setStrokeStyle(3, 0x18202f);
-    this.add.text(280, 252, "Main Street", pixelText(22, "#18202f"));
-    drawBuilding(this, 150, 150, 170, 120, 0x2a9d8f, "School", "school");
-    drawBuilding(this, 610, 150, 170, 120, 0xf4a261, "Home", "home");
-    const hqName = state.user ? `${state.user.username}'s Grandma's House` : "Grandma's House";
-    drawBuilding(this, 380, 420, 230, 120, 0x264653, hqName, "hq");
-    this.player = this.add.rectangle(380, 292, 26, 34, 0xd64045).setStrokeStyle(3, 0x18202f);
-    this.add.rectangle(380, 282, 18, 14, 0xffd6a5).setStrokeStyle(2, 0x18202f);
-    updateNearbyBuilding();
-  }
-
-  drawSchool() {
-    this.clearScene();
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0xf4f1de);
-    this.add.rectangle(380, 160, 560, 190, 0x153f33).setStrokeStyle(8, 0x6d4c41);
-    this.add.text(170, 94, "Secret School", pixelText(30, "#fffdfa"));
-    this.add.rectangle(200, 430, 260, 120, 0xfffdfa).setStrokeStyle(4, 0x18202f);
-    this.add.text(110, 398, "Notebook", pixelText(22, "#18202f"));
-    this.add.rectangle(610, 442, 90, 120, 0x9aa6b2).setStrokeStyle(3, 0x18202f);
-    this.add.text(574, 385, "Door", pixelText(18, "#18202f"));
-  }
-
-  drawHome() {
-    this.clearScene();
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0xf7e1d7);
-    this.add.rectangle(160, 420, 220, 90, 0x8ecae6).setStrokeStyle(4, 0x18202f);
-    this.add.text(102, 392, "Bed", pixelText(20, "#18202f"));
-    this.add.rectangle(580, 390, 170, 100, 0xdda15e).setStrokeStyle(4, 0x18202f);
-    this.add.text(520, 350, "Practice Desk", pixelText(18, "#18202f"));
-    this.add.rectangle(365, 230, 66, 90, 0xd64045).setStrokeStyle(4, 0x18202f);
-    this.add.text(275, 164, "Secret Phone", pixelText(24, "#18202f"));
-    this.add.rectangle(380, 70, 140, 80, 0xbee3db).setStrokeStyle(4, 0x18202f);
-  }
-
-  drawHQ() {
-    this.clearScene();
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0x22223b);
-    this.add.rectangle(380, 150, 560, 150, 0x4a4e69).setStrokeStyle(4, 0xf3c969);
-    this.add.text(162, 96, "Totally Normal Grandma Room", pixelText(24, "#fffdfa"));
-    this.add.rectangle(380, 390, 420, 120, 0x9a8c98).setStrokeStyle(4, 0xf3c969);
-    this.add.text(236, 352, "Mission Console", pixelText(24, "#fffdfa"));
-  }
-
-  drawBattle() {
-    this.clearScene();
-    this.add.rectangle(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, WORLD_WIDTH, WORLD_HEIGHT, 0x1b263b);
-    this.add.rectangle(540, 160, 170, 130, 0xd64045).setStrokeStyle(5, 0xfffdfa);
-    this.add.text(470, 226, state.boss?.boss_name || "Boss", pixelText(20, "#fffdfa"));
-    this.add.rectangle(170, 390, 90, 110, 0x2a9d8f).setStrokeStyle(5, 0xfffdfa);
-    this.add.text(92, 456, "Secret Student", pixelText(18, "#fffdfa"));
-  }
-
-  clearScene() {
-    this.children.removeAll();
-    state.nearbyBuilding = null;
-    this.player = null;
-  }
+function ensureWorld() {
+  if (world) return world;
+  world = createWorldController({
+    mountId: "worldMount",
+    getPlayerName: () => state.user?.username || "AGENT",
+    onNearbyChange: (building) => {
+      state.nearbyBuilding = building;
+      ui.interact.disabled = !building;
+      ui.worldPrompt.textContent = building ? `Press Enter to visit ${buildingLabel(building)}.` : "Use WASD or arrow keys to explore.";
+    },
+    onEnterBuilding: enterBuilding,
+    initialPlayerPosition: state.worldPosition,
+  });
+  return world;
 }
 
-const scene = new SecretStudentScene();
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: "phaserMount",
-  width: WORLD_WIDTH,
-  height: WORLD_HEIGHT,
-  backgroundColor: "#7dcfb6",
-  scene,
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+const router = createScreenRouter({
+  onBeforeChange(current) {
+    if (current !== "world" || !world) return;
+    state.worldPosition = world.getPlayerPosition();
+    world.destroy();
+    world = null;
+    $("#worldMount").replaceChildren();
+  },
+  onAfterChange(next) {
+    if (next === "world") {
+      // Create Phaser only after the map element is visible and has dimensions.
+      requestAnimationFrame(() => ensureWorld().activate());
+    }
+  },
 });
 
-const notebook = createNotebook(ui.answerCanvas);
-
+wireEvents();
 bootstrap();
 
-ui.registerTab.addEventListener("click", () => setAuthMode("register"));
-ui.loginTab.addEventListener("click", () => setAuthMode("login"));
-ui.authForm.addEventListener("submit", submitAuth);
-ui.avatarInput.addEventListener("change", readAvatarFile);
-ui.startCameraButton.addEventListener("click", startCamera);
-ui.captureCameraButton.addEventListener("click", captureCamera);
-ui.logoutButton.addEventListener("click", logout);
-ui.interactButton.addEventListener("click", interactWithNearby);
-ui.lessonForm.addEventListener("submit", startLesson);
-ui.prevStepButton.addEventListener("click", () => changeLessonStep(-1));
-ui.nextStepButton.addEventListener("click", () => changeLessonStep(1));
-ui.teacherQuestionForm.addEventListener("submit", askTeacher);
-ui.startQuizButton.addEventListener("click", startQuiz);
-ui.phoneButton.addEventListener("click", showMissionPhone);
-ui.deskButton.addEventListener("click", showPractice);
-ui.bedButton.addEventListener("click", restAtHome);
-ui.practiceSearchInput.addEventListener("input", renderPracticeList);
-ui.startBossButton.addEventListener("click", startBoss);
-ui.submitAnswerButton.addEventListener("click", submitAnswer);
-ui.clearCanvasButton.addEventListener("click", () => notebook.clear());
-document.querySelectorAll("[data-move]").forEach((button) => {
-  button.addEventListener("click", () => moveByButton(button.dataset.move));
-});
-
 async function bootstrap() {
+  setLoading(true, "Opening classified records...");
   try {
-    const me = await apiGet("/api/me");
+    const me = await getJson("/api/me");
     state.user = me.user;
     state.gameState = me.game_state;
-    state.latestLesson = me.latest_lesson;
-    hydrateAgentPanel();
-    if (!state.gameState.onboarding_complete) {
-      showOnboarding();
-    } else {
-      showWorld("Welcome back. Choose a building and press Enter.");
-    }
+    state.lesson = me.latest_lesson;
+    hydratePersistentUi();
+    if (state.gameState.onboarding_complete) router.show("world", { replace: true });
+    else startOnboarding(true);
   } catch {
-    showAuth();
-  }
-}
-
-function showAuth() {
-  state.mode = "auth";
-  setVisible("auth");
-  ui.panelTitle.textContent = "Agent File";
-  ui.statusText.textContent = "Register or log in to start the mission.";
-  ui.overlay.textContent = "";
-}
-
-function showOnboarding() {
-  setVisible("world");
-  state.mode = "onboarding";
-  ui.panelTitle.textContent = "Codename Grandma";
-  ui.statusText.textContent = "Your first briefing is ready.";
-  ui.overlay.textContent =
-    "Grandma: School gives you the knowledge, home gives you missions, and my house is absolutely not secret headquarters.";
-  setTimeout(async () => {
-    await apiPost("/api/state/location", {
-      location: "school",
-      story_milestone: "onboarding_complete",
-    });
-    state.gameState.onboarding_complete = true;
-    showWorld("First stop: enter School and pick something to learn.");
-  }, 3200);
-}
-
-function showWorld(message = "") {
-  setVisible("world");
-  state.mode = "world";
-  scene.drawWorld();
-  ui.panelTitle.textContent = "World Map";
-  ui.statusText.textContent = message || "Walk to a building and enter.";
-  ui.overlay.textContent = "Arrow keys or WASD move. Space, Enter, or the Enter button opens a nearby building.";
-  hydrateAgentPanel();
-}
-
-async function enterBuilding(kind) {
-  await apiPost("/api/state/location", { location: kind });
-  if (kind === "school") {
-    setVisible("school");
-    state.mode = "school";
-    scene.drawSchool();
-    ui.panelTitle.textContent = "School";
-    ui.statusText.textContent = "Ask for a topic and the teacher will prepare a lesson.";
-    ui.overlay.textContent = "The blackboard is ready. Your notebook waits for answers later.";
-    renderLessonReader();
-  }
-  if (kind === "home") {
-    setVisible("home");
-    state.mode = "home";
-    scene.drawHome();
-    ui.panelTitle.textContent = "Home";
-    ui.statusText.textContent = "Check your phone or practice at the desk.";
-    ui.overlay.textContent = "Home base: missions arrive by phone, practice happens at the desk.";
-  }
-  if (kind === "hq") {
-    setVisible("hq");
-    state.mode = "hq";
-    scene.drawHQ();
-    ui.panelTitle.textContent = "Grandma's House";
-    ui.statusText.textContent = "No one suspects a thing.";
-    hydrateBossPanel();
-    ui.overlay.textContent = "The mission console hums quietly behind a very normal lamp.";
-  }
-}
-
-async function submitAuth(event) {
-  event.preventDefault();
-  const payload = {
-    username: ui.usernameInput.value.trim(),
-    password: ui.passwordInput.value,
-  };
-  if (state.authMode === "register") {
-    payload.learner_level = ui.levelInput.value;
-    payload.avatar_image_data_url = state.avatarImageDataUrl;
-  }
-  setBusy(true, state.authMode === "register" ? "Creating your agent file..." : "Checking credentials...");
-  try {
-    const response = await apiPost(`/api/auth/${state.authMode}`, payload);
-    state.user = response.user;
-    state.gameState = response.game_state;
-    state.latestLesson = null;
-    hydrateAgentPanel();
-    if (state.gameState.onboarding_complete) showWorld();
-    else showOnboarding();
-  } catch (error) {
-    showError(error);
+    router.show("auth", { replace: true });
   } finally {
-    setBusy(false);
+    setLoading(false);
   }
 }
 
-async function logout() {
-  await apiPost("/api/auth/logout", {});
-  state.user = null;
-  state.gameState = null;
-  state.latestLesson = null;
-  showAuth();
+function wireEvents() {
+  ui.registerTab.addEventListener("click", () => setAuthMode("register"));
+  ui.loginTab.addEventListener("click", () => setAuthMode("login"));
+  ui.authForm.addEventListener("submit", submitAuth);
+  ui.avatar.addEventListener("change", readAvatar);
+  ui.startCamera.addEventListener("click", startCamera);
+  ui.captureCamera.addEventListener("click", captureCamera);
+  ui.continueOnboarding.addEventListener("click", advanceOnboarding);
+  ui.logout.addEventListener("click", logout);
+  ui.interact.addEventListener("click", () => world?.enterNearby());
+  $$('[data-move]').forEach((button) => button.addEventListener("click", () => world?.moveDirection(button.dataset.move)));
+  $$('[data-back-to-world]').forEach((button) => button.addEventListener("click", () => goWorld("Back on the map.")));
+  $$('[data-answer-exit]').forEach((button) => button.addEventListener("click", () => goWorld("You left the challenge.")));
+  ui.lessonForm.addEventListener("submit", startLesson);
+  ui.previousStep.addEventListener("click", () => changeLessonStep(-1));
+  ui.nextStep.addEventListener("click", advanceLesson);
+  ui.teacherForm.addEventListener("submit", askTeacher);
+  ui.teacherFollowupForm.addEventListener("submit", askTeacherFollowup);
+  ui.closeTeacherChat.addEventListener("click", () => { ui.teacherChat.hidden = true; });
+  ui.newTopic.addEventListener("click", chooseNewTopic);
+  ui.startQuiz.addEventListener("click", beginQuiz);
+  ui.phone.addEventListener("click", showPhone);
+  ui.desk.addEventListener("click", showPractice);
+  ui.bed.addEventListener("click", rest);
+  ui.closeHomeDialog.addEventListener("click", () => { ui.homeDialog.hidden = true; });
+  ui.practiceSearch.addEventListener("input", renderPractice);
+  ui.startBoss.addEventListener("click", beginBoss);
+  ui.clearQuiz.addEventListener("click", quizNotebook.clear);
+  ui.clearBoss.addEventListener("click", bossNotebook.clear);
+  ui.submitQuiz.addEventListener("click", submitQuizAnswer);
+  ui.submitBoss.addEventListener("click", submitBossAnswer);
+  ui.quizAnswer.addEventListener("keydown", submitOnEnter(submitQuizAnswer));
+  ui.bossAnswer.addEventListener("keydown", submitOnEnter(submitBossAnswer));
 }
 
-async function startLesson(event) {
-  event.preventDefault();
-  setBusy(true, "The teacher is preparing your secret lesson...");
-  ui.overlay.textContent = "Teacher: While I set up the blackboard, organize your notes like a careful agent.";
-  try {
-    const lesson = await apiPost("/api/lesson/start", { topic: ui.topicInput.value.trim() });
-    state.latestLesson = lesson;
-    state.currentStepIndex = 0;
-    renderLessonReader();
-    hydrateAgentPanel();
-    ui.statusText.textContent = "Lesson ready. Read each step, then try the mini quiz.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function renderLessonReader() {
-  const hasLesson = Boolean(state.latestLesson);
-  ui.lessonReader.hidden = !hasLesson;
-  if (!hasLesson) return;
-  const steps = state.latestLesson.lesson_steps;
-  const step = steps[state.currentStepIndex];
-  ui.lessonStepTitle.textContent = step.title;
-  ui.lessonStepBody.textContent = step.body;
-  ui.lessonStepExample.textContent = step.example || "";
-  ui.prevStepButton.disabled = state.currentStepIndex === 0;
-  ui.nextStepButton.disabled = state.currentStepIndex >= steps.length - 1;
-  ui.startQuizButton.disabled = state.currentStepIndex < steps.length - 1;
-}
-
-function changeLessonStep(delta) {
-  if (!state.latestLesson) return;
-  const max = state.latestLesson.lesson_steps.length - 1;
-  state.currentStepIndex = Math.max(0, Math.min(max, state.currentStepIndex + delta));
-  renderLessonReader();
-}
-
-async function askTeacher(event) {
-  event.preventDefault();
-  if (!state.latestLesson || !ui.teacherQuestionInput.value.trim()) return;
-  setBusy(true, "Asking the teacher...");
-  try {
-    const response = await apiPost(`/api/lesson/${state.latestLesson.id}/ask`, {
-      step_index: state.currentStepIndex,
-      question: ui.teacherQuestionInput.value.trim(),
-    });
-    ui.teacherAnswer.textContent = response.answer;
-    ui.teacherQuestionInput.value = "";
-  } catch (error) {
-    showError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function startQuiz() {
-  if (!state.latestLesson?.quiz_questions.length) return;
-  state.currentAnswerMode = "quiz";
-  state.currentQuestion = state.latestLesson.quiz_questions[0];
-  showAnswerPanel("Mini Quiz", "Answer the question. Type if you can, or draw in the notebook.");
-}
-
-async function startBoss() {
-  if (!state.latestLesson) return;
-  setBusy(true, "Opening the hidden mission console...");
-  try {
-    const response = await apiPost("/api/boss/start", { lesson_id: state.latestLesson.id });
-    state.boss = response;
-    state.currentAnswerMode = "boss";
-    state.currentQuestion = response.question;
-    scene.drawBattle();
-    showAnswerPanel("Boss Battle", response.briefing);
-    renderBattleStats();
-  } catch (error) {
-    showError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function showAnswerPanel(label, message) {
-  setVisible("answer");
-  notebook.clear();
-  ui.feedbackText.textContent = "";
-  ui.answerInput.value = "";
-  ui.panelTitle.textContent = label;
-  ui.questionModeLabel.textContent = label;
-  ui.statusText.textContent = message;
-  ui.overlay.textContent = message;
-  ui.questionText.textContent = state.currentQuestion.question;
-  ui.answerInput.focus();
-}
-
-async function submitAnswer() {
-  if (!state.latestLesson || !state.currentQuestion) return;
-  const answerText = ui.answerInput.value.trim();
-  const payload = {
-    lesson_id: state.latestLesson.id,
-    question_id: state.currentQuestion.id,
-    mode: state.currentAnswerMode,
-    answer_text: answerText || null,
-    image_data_url: answerText ? null : notebook.toDataUrlIfUsed(),
-  };
-  if (!payload.answer_text && !payload.image_data_url) {
-    ui.feedbackText.textContent = "Type an answer or write one in the notebook.";
-    return;
-  }
-  setBusy(true, "Checking your answer...");
-  try {
-    const endpoint = state.currentAnswerMode === "boss" ? "/api/boss/submit" : "/api/quiz/submit";
-    const response = await apiPost(endpoint, payload);
-    ui.feedbackText.textContent = response.result.feedback;
-    if (state.currentAnswerMode === "boss") {
-      handleBossResponse(response);
-    } else {
-      handleQuizResponse(response);
+function submitOnEnter(callback) {
+  return (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      callback();
     }
-  } catch (error) {
-    showError(error);
-  } finally {
-    setBusy(false);
-  }
-}
-
-function handleQuizResponse(response) {
-  if (response.completed) {
-    ui.statusText.textContent = "Quiz complete. Go home and wait for the secret phone.";
-    ui.overlay.textContent = "Teacher: Good work. Head home when you are ready.";
-    setTimeout(() => showWorld("Go home for your mission call."), 1600);
-    return;
-  }
-  state.currentQuestion = response.next_question;
-  ui.questionText.textContent = state.currentQuestion.question;
-  ui.answerInput.value = "";
-  notebook.clear();
-}
-
-function handleBossResponse(response) {
-  state.boss = response;
-  renderBattleStats();
-  if (response.defeated) {
-    ui.statusText.textContent = "Boss defeated. The world is safer because you studied.";
-    ui.overlay.textContent = `${response.boss_name} retreats. Mission complete.`;
-    setTimeout(() => showWorld("Mission complete. Pick a new lesson when ready."), 2200);
-    return;
-  }
-  if (response.lost) {
-    ui.statusText.textContent = "Mission failed for now. Rest at home, then try again.";
-    ui.overlay.textContent = "Grandma: Tactical retreat. Home, rest, return.";
-    setTimeout(() => showWorld("Go home to rest before retrying the boss."), 2200);
-    return;
-  }
-  state.currentQuestion = response.question;
-  ui.questionText.textContent = state.currentQuestion.question;
-  ui.answerInput.value = "";
-  notebook.clear();
-}
-
-function renderBattleStats() {
-  if (!state.boss) {
-    ui.battleStats.textContent = "";
-    return;
-  }
-  ui.battleStats.textContent =
-    `Question ${state.boss.question_index}/${state.boss.total_questions}. ` +
-    `Mistakes remaining: ${state.boss.mistakes_remaining}.`;
-}
-
-function showMissionPhone() {
-  ui.practicePanel.hidden = true;
-  ui.phoneDialog.hidden = false;
-  if (!state.latestLesson) {
-    ui.phoneDialog.textContent =
-      "Secret phone: No active mission yet. Go to school and learn a topic first.";
-    return;
-  }
-  const boss = state.latestLesson.boss_mission;
-  ui.phoneDialog.textContent =
-    `Secret phone: We need to defeat ${boss.boss_name}. ` +
-    `Review ${state.latestLesson.topic}, then visit Grandma's house when ready.`;
-}
-
-function showPractice() {
-  ui.phoneDialog.hidden = true;
-  ui.practicePanel.hidden = false;
-  renderPracticeList();
-}
-
-function renderPracticeList() {
-  ui.practiceList.innerHTML = "";
-  if (!state.latestLesson) {
-    ui.practiceList.textContent = "No notes yet. Go to school first.";
-    return;
-  }
-  const search = ui.practiceSearchInput.value.trim().toLowerCase();
-  const items = [
-    ...state.latestLesson.lesson_steps.map((step) => ({
-      title: step.title,
-      body: `${step.body} ${step.example || ""}`,
-    })),
-    ...state.latestLesson.quiz_questions.map((question) => ({
-      title: question.question,
-      body: question.explanation || question.expected_answer,
-    })),
-  ].filter((item) => `${item.title} ${item.body}`.toLowerCase().includes(search));
-  for (const item of items) {
-    const node = document.createElement("article");
-    node.className = "practice-item";
-    node.innerHTML = `<strong></strong><p></p>`;
-    node.querySelector("strong").textContent = item.title;
-    node.querySelector("p").textContent = item.body;
-    ui.practiceList.append(node);
-  }
-}
-
-async function restAtHome() {
-  await apiPost("/api/state/location", { location: "home", story_milestone: "rest" });
-  ui.statusText.textContent = "You rested. Health restored for another try.";
-  ui.overlay.textContent = "A good night's sleep restores agent focus.";
-}
-
-function hydrateBossPanel() {
-  if (!state.latestLesson) {
-    ui.bossName.textContent = "No boss yet";
-    ui.bossBriefing.textContent = "Finish a lesson first, then come here for the mission.";
-    ui.startBossButton.disabled = true;
-    return;
-  }
-  ui.bossName.textContent = state.latestLesson.boss_mission.boss_name;
-  ui.bossBriefing.textContent = state.latestLesson.boss_mission.briefing;
-  ui.startBossButton.disabled = false;
-}
-
-function hydrateAgentPanel() {
-  ui.agentName.textContent = state.user?.username || "-";
-  ui.agentLevel.textContent = state.user?.learner_level || "-";
-  ui.activeMission.textContent = state.latestLesson?.topic || state.gameState?.active_topic || "None yet";
-}
-
-function interactWithNearby() {
-  if (state.mode !== "world") {
-    showWorld("Back on the map.");
-    return;
-  }
-  if (state.nearbyBuilding) enterBuilding(state.nearbyBuilding);
-}
-
-function moveByButton(direction) {
-  if (state.mode !== "world") return;
-  const amount = 24;
-  const vectors = {
-    up: [0, -amount],
-    down: [0, amount],
-    left: [-amount, 0],
-    right: [amount, 0],
-  };
-  const [dx, dy] = vectors[direction] || [0, 0];
-  movePlayer(dx, dy);
-}
-
-function movePlayer(dx, dy) {
-  if (!scene.player) return;
-  scene.player.x = Phaser.Math.Clamp(scene.player.x + dx, 24, WORLD_WIDTH - 24);
-  scene.player.y = Phaser.Math.Clamp(scene.player.y + dy, 24, WORLD_HEIGHT - 24);
-  updateNearbyBuilding();
-}
-
-function updateNearbyBuilding() {
-  if (!scene.player) return;
-  const buildings = [
-    { kind: "school", x: 150, y: 150 },
-    { kind: "home", x: 610, y: 150 },
-    { kind: "hq", x: 380, y: 420 },
-  ];
-  const nearby = buildings.find((building) =>
-    Phaser.Math.Distance.Between(scene.player.x, scene.player.y, building.x, building.y) < 110
-  );
-  state.nearbyBuilding = nearby?.kind || null;
-  ui.interactButton.disabled = !state.nearbyBuilding;
-  if (state.mode === "world") {
-    ui.statusText.textContent = state.nearbyBuilding
-      ? `Near ${labelForBuilding(state.nearbyBuilding)}. Press Enter.`
-      : "Walk to a building and enter.";
-  }
-}
-
-function labelForBuilding(kind) {
-  if (kind === "school") return "School";
-  if (kind === "home") return "Home";
-  return "Grandma's House";
-}
-
-function drawBuilding(sceneRef, x, y, width, height, color, label, kind) {
-  sceneRef.add.rectangle(x, y, width, height, color).setStrokeStyle(4, 0x18202f);
-  sceneRef.add.rectangle(x, y + height / 2 - 18, 46, 36, 0xfffdfa).setStrokeStyle(3, 0x18202f);
-  sceneRef.add.text(x - width / 2 + 12, y - 18, label, pixelText(18, "#fffdfa"));
-  sceneRef.add.text(x - 28, y + height / 2 + 26, "Enter", pixelText(14, "#18202f"));
-  const zone = sceneRef.add.zone(x, y, width, height).setInteractive({ useHandCursor: true });
-  zone.on("pointerdown", () => enterBuilding(kind));
-}
-
-function drawGrid(sceneRef, size, color) {
-  const graphics = sceneRef.add.graphics();
-  graphics.lineStyle(1, color, 0.45);
-  for (let x = 0; x <= WORLD_WIDTH; x += size) graphics.lineBetween(x, 0, x, WORLD_HEIGHT);
-  for (let y = 0; y <= WORLD_HEIGHT; y += size) graphics.lineBetween(0, y, WORLD_WIDTH, y);
-}
-
-function pixelText(size, color) {
-  return {
-    fontFamily: "monospace",
-    fontSize: `${size}px`,
-    color,
-    fontStyle: "bold",
-    wordWrap: { width: 260 },
   };
 }
 
@@ -656,168 +150,396 @@ function setAuthMode(mode) {
   ui.levelLabel.hidden = mode !== "register";
   ui.avatarLabel.hidden = mode !== "register";
   ui.cameraTools.hidden = mode !== "register";
-  ui.authSubmitButton.textContent = mode === "register" ? "Create Agent File" : "Login";
+  ui.authSubmit.textContent = mode === "register" ? "Create Agent File" : "Enter Headquarters";
+  ui.authStatus.textContent = "";
 }
 
-async function readAvatarFile() {
-  const file = ui.avatarInput.files?.[0];
+async function submitAuth(event) {
+  event.preventDefault();
+  const payload = { username: ui.username.value.trim(), password: ui.password.value };
+  if (state.authMode === "register") {
+    payload.learner_level = ui.level.value;
+    payload.avatar_image_data_url = state.avatarDataUrl;
+  }
+  setLoading(true, state.authMode === "register" ? "Creating your cover identity..." : "Checking credentials...");
+  try {
+    const response = await postJson(`/api/auth/${state.authMode}`, payload);
+    state.user = response.user;
+    state.gameState = response.game_state;
+    state.lesson = null;
+    hydratePersistentUi();
+    if (state.gameState.onboarding_complete) router.show("world");
+    else startOnboarding();
+  } catch (error) {
+    ui.authStatus.textContent = error.message;
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function logout() {
+  await postJson("/api/auth/logout");
+  state.user = null; state.gameState = null; state.lesson = null;
+  setAuthMode("login");
+  router.show("auth");
+}
+
+const onboardingLines = [
+  "Welcome, agent. To everyone else, you are an ordinary student.",
+  "At School, choose a topic and learn the skills hidden inside it.",
+  "At Home, your secret phone delivers missions and your desk stores practice notes.",
+  "When you are ready, visit Grandma's House. Nobody suspects it is headquarters.",
+];
+
+function startOnboarding(replace = false) {
+  state.onboardingIndex = 0;
+  ui.onboardingText.textContent = onboardingLines[0];
+  ui.continueOnboarding.textContent = "Continue";
+  router.show("onboarding", { replace });
+}
+
+async function advanceOnboarding() {
+  state.onboardingIndex += 1;
+  if (state.onboardingIndex < onboardingLines.length) {
+    ui.onboardingText.textContent = onboardingLines[state.onboardingIndex];
+    ui.continueOnboarding.textContent = state.onboardingIndex === onboardingLines.length - 1 ? "Begin Mission" : "Continue";
+    return;
+  }
+  await postJson("/api/state/location", { location: "world", story_milestone: "onboarding_complete" });
+  state.gameState.onboarding_complete = true;
+  goWorld("First stop: School.");
+}
+
+async function enterBuilding(kind) {
+  if (!state.user || router.current() !== "world") return;
+  await postJson("/api/state/location", { location: kind });
+  if (kind === "school") {
+    prepareSchool();
+    router.show("school");
+  } else if (kind === "home") {
+    prepareHome();
+    router.show("home");
+  } else {
+    prepareHq();
+    router.show("hq");
+  }
+}
+
+function goWorld(message) {
+  hydratePersistentUi();
+  router.show("world");
+  ui.worldPrompt.textContent = message || "Use WASD or arrow keys to explore.";
+}
+
+function prepareSchool() {
+  ui.schoolStatus.textContent = state.lesson ? `Current subject: ${state.lesson.topic}` : "The teacher is ready.";
+  if (state.lesson) renderLesson();
+  else {
+    ui.lessonForm.hidden = false;
+    ui.lessonReader.hidden = true;
+  }
+}
+
+function chooseNewTopic() {
+  ui.lessonReader.hidden = true;
+  ui.lessonForm.hidden = false;
+  ui.topic.value = "";
+  ui.topic.focus();
+  ui.schoolStatus.textContent = "Choose the next subject to investigate.";
+}
+
+async function startLesson(event) {
+  event.preventDefault();
+  setLoading(true, "The teacher is preparing the blackboard...");
+  try {
+    state.lesson = await postJson("/api/lesson/start", { topic: ui.topic.value.trim() });
+    state.lessonStep = 0;
+    resetTeacherChat();
+    renderLesson();
+    hydratePersistentUi();
+    ui.schoolStatus.textContent = "Lesson ready.";
+  } catch (error) {
+    ui.schoolStatus.textContent = error.message;
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderLesson() {
+  if (!state.lesson) return;
+  const steps = state.lesson.lesson_steps;
+  const step = steps[state.lessonStep];
+  ui.lessonForm.hidden = true;
+  ui.lessonReader.hidden = false;
+  ui.lessonProgress.textContent = `Lesson ${state.lessonStep + 1}/${steps.length}`;
+  ui.lessonTitle.textContent = step.title;
+  ui.lessonBody.textContent = step.body;
+  ui.lessonExample.textContent = step.example || "";
+  ui.previousStep.disabled = state.lessonStep === 0;
+  const finalStep = state.lessonStep === steps.length - 1;
+  ui.nextStep.disabled = false;
+  ui.nextStep.textContent = finalStep ? "Start Quiz" : "Next";
+  ui.startQuiz.hidden = !finalStep;
+  ui.startQuiz.disabled = !finalStep;
+  ui.schoolStatus.textContent = finalStep
+    ? "Lesson complete. Select Start Quiz to open your notebook."
+    : `Lesson step ${state.lessonStep + 1} of ${steps.length}.`;
+}
+
+function changeLessonStep(change) {
+  if (!state.lesson) return;
+  state.lessonStep = Math.max(0, Math.min(state.lesson.lesson_steps.length - 1, state.lessonStep + change));
+  ensureTeacherChatForStep();
+  renderLesson();
+}
+
+function advanceLesson() {
+  if (!state.lesson) return;
+  const finalStep = state.lessonStep === state.lesson.lesson_steps.length - 1;
+  if (finalStep) beginQuiz();
+  else changeLessonStep(1);
+}
+
+async function askTeacher(event) {
+  event.preventDefault();
+  const question = ui.teacherQuestion.value.trim();
+  if (!question) return;
+  ui.teacherQuestion.value = "";
+  await sendTeacherQuestion(question);
+}
+
+async function askTeacherFollowup(event) {
+  event.preventDefault();
+  const question = ui.teacherFollowup.value.trim();
+  if (!question) return;
+  ui.teacherFollowup.value = "";
+  await sendTeacherQuestion(question);
+}
+
+async function sendTeacherQuestion(question) {
+  if (!state.lesson) return;
+  ensureTeacherChatForStep();
+  const priorHistory = state.teacherChatHistory.slice(-12);
+  state.teacherChatHistory.push({ role: "student", content: question });
+  renderTeacherChat();
+  ui.teacherChat.hidden = false;
+  setLoading(true, "The teacher is thinking...");
+  try {
+    const response = await postJson(`/api/lesson/${state.lesson.id}/ask`, {
+      step_index: state.lessonStep,
+      question,
+      history: priorHistory,
+    });
+    state.teacherChatHistory.push({ role: "teacher", content: response.answer });
+  } catch (error) {
+    state.teacherChatHistory.push({ role: "teacher", content: `I could not answer that yet: ${error.message}` });
+  } finally {
+    setLoading(false);
+    renderTeacherChat();
+    ui.teacherFollowup.focus();
+  }
+}
+
+function ensureTeacherChatForStep() {
+  const key = state.lesson ? `${state.lesson.id}:${state.lessonStep}` : null;
+  if (key === state.teacherChatKey) return;
+  state.teacherChatKey = key;
+  state.teacherChatHistory = [];
+  ui.teacherChat.hidden = true;
+  renderTeacherChat();
+}
+
+function resetTeacherChat() {
+  state.teacherChatKey = null;
+  state.teacherChatHistory = [];
+  ensureTeacherChatForStep();
+}
+
+function renderTeacherChat() {
+  ui.teacherChatMessages.replaceChildren();
+  for (const message of state.teacherChatHistory) {
+    const bubble = document.createElement("p");
+    bubble.className = `chat-message ${message.role}`;
+    bubble.textContent = message.content;
+    ui.teacherChatMessages.append(bubble);
+  }
+  ui.teacherChatMessages.scrollTop = ui.teacherChatMessages.scrollHeight;
+}
+
+function beginQuiz() {
+  if (!state.lesson?.quiz_questions.length) return;
+  state.quizQuestion = state.lesson.quiz_questions[0];
+  renderQuizQuestion();
+  router.show("quiz");
+  setTimeout(() => ui.quizAnswer.focus(), 0);
+}
+
+function renderQuizQuestion() {
+  ui.quizQuestion.textContent = state.quizQuestion.question;
+  ui.quizAnswer.value = "";
+  ui.quizFeedback.textContent = "";
+  quizNotebook.clear();
+}
+
+async function submitQuizAnswer() {
+  const payload = answerPayload("quiz", state.quizQuestion, ui.quizAnswer, quizNotebook);
+  if (!payload) { ui.quizFeedback.textContent = "Type or draw an answer first."; return; }
+  setLoading(true, "Checking your notebook...");
+  try {
+    const response = await postJson("/api/quiz/submit", payload);
+    ui.quizFeedback.textContent = response.result.feedback;
+    if (response.completed) {
+      ui.quizFeedback.textContent += " Quiz complete. Go home for your mission call.";
+      setTimeout(() => goWorld("Head home for your mission briefing."), 1500);
+    } else {
+      state.quizQuestion = response.next_question;
+      setTimeout(renderQuizQuestion, 700);
+    }
+  } catch (error) { ui.quizFeedback.textContent = error.message; }
+  finally { setLoading(false); }
+}
+
+function prepareHome() {
+  ui.homeDialog.hidden = true;
+  ui.homeStatus.textContent = state.lesson ? "Your secret phone is flashing." : "Visit School to begin a mission.";
+}
+
+function showPhone() {
+  ui.homeDialog.hidden = false;
+  ui.phoneDialog.hidden = false;
+  ui.practicePanel.hidden = true;
+  ui.phoneDialog.textContent = state.lesson
+    ? `Agent, ${state.lesson.boss_mission.boss_name} is attacking everything connected to ${state.lesson.topic}. Practice if needed, then report to Grandma's House.`
+    : "No mission yet. Your next assignment begins at School.";
+}
+
+function showPractice() {
+  ui.homeDialog.hidden = false;
+  ui.phoneDialog.hidden = true;
+  ui.practicePanel.hidden = false;
+  renderPractice();
+}
+
+function renderPractice() {
+  ui.practiceList.replaceChildren();
+  if (!state.lesson) { ui.practiceList.textContent = "No notes yet."; return; }
+  const query = ui.practiceSearch.value.trim().toLowerCase();
+  const notes = [
+    ...state.lesson.lesson_steps.map((step) => ({ title: step.title, body: `${step.body} ${step.example || ""}` })),
+    ...state.lesson.quiz_questions.map((question) => ({ title: question.question, body: question.explanation })),
+  ].filter((note) => `${note.title} ${note.body}`.toLowerCase().includes(query));
+  for (const note of notes) {
+    const article = document.createElement("article");
+    article.className = "practice-item";
+    const title = document.createElement("strong"); title.textContent = note.title;
+    const body = document.createElement("p"); body.textContent = note.body;
+    article.append(title, body); ui.practiceList.append(article);
+  }
+}
+
+async function rest() {
+  await postJson("/api/state/location", { location: "home", story_milestone: "rest" });
+  ui.homeStatus.textContent = "You rested. Agent health restored.";
+}
+
+function prepareHq() {
+  ui.bossName.textContent = state.lesson?.boss_mission.boss_name || "No boss detected";
+  ui.bossBriefing.textContent = state.lesson?.boss_mission.briefing || "Complete a lesson before opening the vault.";
+  ui.startBoss.disabled = !state.lesson;
+}
+
+async function beginBoss() {
+  if (!state.lesson) return;
+  setLoading(true, "Unlocking the mission vault...");
+  try {
+    state.bossState = await postJson("/api/boss/start", { lesson_id: state.lesson.id });
+    state.bossQuestion = state.bossState.question;
+    renderBossQuestion();
+    router.show("boss");
+    setTimeout(() => ui.bossAnswer.focus(), 0);
+  } catch (error) { ui.bossBriefing.textContent = error.message; }
+  finally { setLoading(false); }
+}
+
+function renderBossQuestion() {
+  ui.battleBossName.textContent = state.bossState.boss_name;
+  ui.battleStats.textContent = `Question ${state.bossState.question_index}/${state.bossState.total_questions} | Mistakes left: ${state.bossState.mistakes_remaining}`;
+  ui.bossQuestion.textContent = state.bossQuestion.question;
+  ui.bossAnswer.value = "";
+  ui.bossFeedback.textContent = "";
+  bossNotebook.clear();
+}
+
+async function submitBossAnswer() {
+  const payload = answerPayload("boss", state.bossQuestion, ui.bossAnswer, bossNotebook);
+  if (!payload) { ui.bossFeedback.textContent = "Transmit an answer first."; return; }
+  setLoading(true, "Resolving attack...");
+  try {
+    const response = await postJson("/api/boss/submit", payload);
+    ui.bossFeedback.textContent = response.result.feedback;
+    state.bossState = response;
+    if (response.defeated) {
+      ui.bossFeedback.textContent += " Mission complete. The world is safe.";
+      setTimeout(() => goWorld("Mission complete. School is ready for a new topic."), 1800);
+    } else if (response.lost) {
+      ui.bossFeedback.textContent += " Retreat home and rest before trying again.";
+      setTimeout(() => goWorld("Return home to recover."), 1800);
+    } else {
+      state.bossQuestion = response.question;
+      setTimeout(renderBossQuestion, 700);
+    }
+  } catch (error) { ui.bossFeedback.textContent = error.message; }
+  finally { setLoading(false); }
+}
+
+function answerPayload(mode, question, input, notebook) {
+  if (!state.lesson || !question) return null;
+  const text = input.value.trim();
+  const image = text ? null : notebook.toDataUrlIfUsed();
+  if (!text && !image) return null;
+  return { lesson_id: state.lesson.id, question_id: question.id, mode, answer_text: text || null, image_data_url: image };
+}
+
+function hydratePersistentUi() {
+  ui.agentName.textContent = state.user?.username || "-";
+  ui.activeMission.textContent = state.lesson?.topic || state.gameState?.active_topic || "Find a lesson";
+}
+
+function buildingLabel(kind) {
+  if (kind === "school") return "School";
+  if (kind === "home") return "Home";
+  return `${state.user?.username || "Agent"}'s Grandma's House`;
+}
+
+async function readAvatar() {
+  const file = ui.avatar.files?.[0];
   if (!file) return;
-  state.avatarImageDataUrl = await fileToDataUrl(file);
+  state.avatarDataUrl = await fileToDataUrl(file);
 }
 
 async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    ui.statusText.textContent = "Webcam is not available in this browser.";
-    return;
-  }
+  if (!navigator.mediaDevices?.getUserMedia) { ui.authStatus.textContent = "Webcam is unavailable."; return; }
   const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   ui.cameraPreview.srcObject = stream;
   ui.cameraPreview.hidden = false;
-  ui.captureCameraButton.hidden = false;
+  ui.captureCamera.hidden = false;
   await ui.cameraPreview.play();
 }
 
 function captureCamera() {
   const context = ui.cameraCanvas.getContext("2d");
   context.drawImage(ui.cameraPreview, 0, 0, ui.cameraCanvas.width, ui.cameraCanvas.height);
-  state.avatarImageDataUrl = ui.cameraCanvas.toDataURL("image/png");
+  state.avatarDataUrl = ui.cameraCanvas.toDataURL("image/png");
   ui.cameraCanvas.hidden = false;
 }
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
 
-function setVisible(section) {
-  const map = {
-    auth: ui.authPanel,
-    world: ui.worldPanel,
-    school: ui.schoolPanel,
-    home: ui.homePanel,
-    hq: ui.hqPanel,
-    answer: ui.answerPanel,
-  };
-  Object.values(map).forEach((panel) => {
-    panel.hidden = true;
-  });
-  map[section].hidden = false;
-}
-
-function setBusy(isBusy, message = "") {
-  state.busy = isBusy;
-  if (message) ui.statusText.textContent = message;
-  document.querySelectorAll("button, input, select").forEach((element) => {
-    if (element.id === "logoutButton") return;
-    element.disabled = isBusy;
-  });
-  if (!isBusy) {
-    ui.interactButton.disabled = state.mode === "world" && !state.nearbyBuilding;
-    if (state.latestLesson) renderLessonReader();
-    hydrateBossPanel();
-  }
-}
-
-async function apiGet(path) {
-  const response = await fetch(`${API_BASE}${path}`, { credentials: "include" });
-  return parseResponse(response);
-}
-
-async function apiPost(path, payload) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return parseResponse(response);
-}
-
-async function parseResponse(response) {
-  const contentType = response.headers.get("content-type") || "";
-  const body = contentType.includes("application/json") ? await response.json() : await response.text();
-  if (!response.ok) {
-    const message = typeof body === "object" ? body.detail || JSON.stringify(body) : body;
-    throw new Error(message || `HTTP ${response.status}`);
-  }
-  return body;
-}
-
-function showError(error) {
-  ui.statusText.textContent = error.message || "Something went wrong.";
-  ui.overlay.textContent = ui.statusText.textContent;
-}
-
-function createNotebook(canvas) {
-  const context = canvas.getContext("2d");
-  let drawing = false;
-  let used = false;
-  let last = null;
-
-  function clear() {
-    used = false;
-    context.fillStyle = "#fbfaf4";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = "#d8d4c8";
-    context.lineWidth = 1;
-    for (let y = 36; y < canvas.height; y += 36) {
-      context.beginPath();
-      context.moveTo(0, y);
-      context.lineTo(canvas.width, y);
-      context.stroke();
-    }
-    context.strokeStyle = "#2a9d8f";
-    context.lineWidth = 5;
-    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-  }
-
-  function point(event) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-    };
-  }
-
-  function start(event) {
-    drawing = true;
-    used = true;
-    last = point(event);
-    event.preventDefault();
-  }
-
-  function move(event) {
-    if (!drawing || !last) return;
-    const next = point(event);
-    context.strokeStyle = "#18202f";
-    context.lineWidth = 12;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.beginPath();
-    context.moveTo(last.x, last.y);
-    context.lineTo(next.x, next.y);
-    context.stroke();
-    last = next;
-    event.preventDefault();
-  }
-
-  function stop() {
-    drawing = false;
-    last = null;
-  }
-
-  canvas.addEventListener("pointerdown", start);
-  canvas.addEventListener("pointermove", move);
-  canvas.addEventListener("pointerup", stop);
-  canvas.addEventListener("pointerleave", stop);
-  clear();
-
-  return {
-    clear,
-    toDataUrlIfUsed: () => (used ? canvas.toDataURL("image/png") : null),
-  };
+function setLoading(visible, text = "Loading...") {
+  ui.loading.hidden = !visible;
+  ui.loadingText.textContent = text;
 }
