@@ -44,13 +44,101 @@ Mock mode is fully playable without a model endpoint.
 
 ## Model Configuration
 
-The backend expects an OpenAI-compatible chat completions endpoint when using a local or hosted model server:
+Choose the model runtime at application startup:
+
+```text
+LLM_RUNTIME=mock                # no external model; deterministic demo content
+LLM_RUNTIME=external            # Modal or another OpenAI-compatible endpoint
+LLM_RUNTIME=embedded_llamacpp   # llama.cpp runs beside the app in one container
+```
+
+`LLM_PROVIDER` remains supported for older local `.env` files, but
+`LLM_RUNTIME` takes precedence.
+
+### External Or Modal
+
+The external mode works with Modal, a public llama.cpp server, or another
+OpenAI-compatible chat-completions endpoint:
+
+Nemotron example:
 
 ```bash
-LLM_PROVIDER=openai_compatible
-LLM_BASE_URL=http://127.0.0.1:8001
-LLM_API_KEY=
+LLM_RUNTIME=external
+LLM_BASE_URL=https://your-modal-app.modal.run
+LLM_API_KEY=replace-with-the-model-server-key
+LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
+```
+
+MiniCPM-V 4.6 example, matching the model used during local development:
+
+```bash
+LLM_RUNTIME=external
+LLM_BASE_URL=https://your-public-minicpm-endpoint
+LLM_API_KEY=replace-with-the-model-server-key
 LLM_MODEL=openbmb/MiniCPM-V-4.6
+```
+
+Deploy the included Modal llama.cpp server:
+
+```bash
+uv sync --extra modal
+modal setup
+modal secret create secret-student-llm \
+  LLAMA_ARG_API_KEY=replace-with-a-long-random-key \
+  HF_TOKEN=hf_your_token
+uv run --extra modal modal deploy scripts/deploy_llamacpp_modal.py
+```
+
+The deploy command prints the URL to use as `LLM_BASE_URL`. The Modal script
+defaults to an L40S, persistent model caches, and the pinned
+`ghcr.io/ggml-org/llama.cpp:server-cuda-b9049` image. Override its model or GPU
+with `MODAL_LLAMA_CPP_MODEL_REF` and `MODAL_LLAMA_CPP_GPU` before deployment.
+For MiniCPM-V on Modal, set `MODAL_LLAMA_CPP_MODEL_REF` to a compatible
+MiniCPM-V 4.6 GGUF repository and quantization before running `modal deploy`.
+
+### Embedded llama.cpp
+
+The Docker image contains both Secret Student and `llama-server`. The startup
+supervisor launches and health-checks the model before serving the game:
+
+Nemotron example:
+
+```bash
+LLM_RUNTIME=embedded_llamacpp
+LLAMA_CPP_MODEL_REF=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
+LLAMA_CPP_API_KEY=replace-with-a-long-random-key
+LLAMA_CPP_CTX_SIZE=8192
+LLAMA_CPP_GPU_LAYERS=999
+LLAMA_CPP_STARTUP_TIMEOUT=900
+LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
+```
+
+MiniCPM-V 4.6 example:
+
+```bash
+LLM_RUNTIME=embedded_llamacpp
+LLAMA_CPP_MODEL_REF=your-minicpm-v-4.6-gguf-repository:your-quantization
+LLAMA_CPP_API_KEY=replace-with-a-long-random-key
+LLAMA_CPP_CTX_SIZE=8192
+LLAMA_CPP_GPU_LAYERS=999
+LLM_MODEL=openbmb/MiniCPM-V-4.6
+```
+
+`LLAMA_CPP_MODEL_REF` tells llama.cpp which GGUF package to download.
+`LLM_MODEL` is the model identifier sent in OpenAI-compatible API requests.
+They may differ. For handwritten image verification, the selected MiniCPM-V
+GGUF package must include or reference its multimodal projector and be supported
+by the pinned llama.cpp build.
+
+The Space must use regular GPU hardware for this mode. Hugging Face ZeroGPU is
+available only to Gradio SDK Spaces using dynamically decorated GPU functions;
+it cannot provide a long-lived GPU to this Docker supervisor. Persistent Space
+storage is recommended because model caches live under `/data`.
+
+For local NVIDIA Docker testing with a separate llama.cpp service:
+
+```bash
+docker compose -f compose.yaml -f compose.llamacpp.yaml up --build
 ```
 
 The lesson generator requests structured JSON and parses it into Pydantic classes. Text and numeric answers are checked deterministically first. Drawn answers are sent to the vision model only when the player submits notebook handwriting.
@@ -105,10 +193,51 @@ uv run pytest
 
 ## Hugging Face Space
 
-Use the Docker Space runtime or run:
+This repository is configured as a Docker Space. Set one of the following in
+**Settings > Variables and secrets**.
+
+After a push to the Space's `main` branch, Hugging Face automatically rebuilds
+the Docker image and runs its `CMD`, which starts `python -m app.runtime`. A
+Factory reboot is useful after changing Variables or Secrets.
+
+Modal/external variables:
+
+```text
+LLM_RUNTIME=external
+LLM_BASE_URL=https://your-modal-app.modal.run
+LLM_MODEL=ggml-org/NVIDIA-Nemotron-3-Nano-Omni:Q4_K_M
+# Or: openbmb/MiniCPM-V-4.6
+```
+
+Modal/external secrets:
+
+```text
+LLM_API_KEY=your-model-server-key
+APP_SECRET=your-game-session-secret
+```
+
+Embedded variables:
+
+```text
+LLM_RUNTIME=embedded_llamacpp
+LLAMA_CPP_MODEL_REF=your-gguf-repository:quantization
+LLM_MODEL=openbmb/MiniCPM-V-4.6
+LLAMA_CPP_CTX_SIZE=8192
+LLAMA_CPP_GPU_LAYERS=999
+```
+
+Embedded secrets:
+
+```text
+LLAMA_CPP_API_KEY=your-internal-model-key
+HF_TOKEN=your-hugging-face-token
+APP_SECRET=your-game-session-secret
+```
+
+The Space starts through:
 
 ```bash
-uv run uvicorn main:app --host 0.0.0.0 --port 7860
+python -m app.runtime
 ```
 
 The Gradio root embeds `/game`, which serves the custom Phaser app. Static files are under `frontend/static`.

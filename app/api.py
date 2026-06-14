@@ -59,7 +59,12 @@ def on_startup() -> None:
 
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(ok=True, provider=settings.llm_provider, model=settings.llm_model)
+    return HealthResponse(
+        ok=True,
+        runtime=settings.llm_runtime,
+        provider=settings.llm_provider,
+        model=settings.llm_model,
+    )
 
 
 @app.post("/api/auth/register", response_model=AuthResponse)
