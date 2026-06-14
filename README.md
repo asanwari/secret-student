@@ -1,3 +1,15 @@
+---
+title: Secret Student
+emoji: "\U0001F30D"
+colorFrom: purple
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: "Retro game: play as a student with a secret identity!"
+---
+
 # Secret Student
 
 Secret Student is a Gradio-hosted retro learning game for the Hugging Face Build Small Hackathon. A player registers as a school kid with a secret identity, learns a topic at school, gets a mission call at home, and fights a boss at `{player_name}'s Grandma's House`.
