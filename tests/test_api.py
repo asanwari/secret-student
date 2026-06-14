@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api import app
 from app.database import init_db
 from app.image_validation import validate_image_data_url
-from app.llm_clients import MockLLMClient, _normalize_confidence, create_llm_client
+from app.llm_clients import (
+    MockLLMClient,
+    OpenAICompatibleLLMClient,
+    _lesson_response_format,
+    _normalize_lesson_package,
+    _validate_lesson_counts,
+    _verification_response_format,
+    _normalize_confidence,
+    create_llm_client,
+)
 from app.config import Settings
 
 
@@ -15,6 +27,13 @@ PNG_DATA_URL = (
     "data:image/png;base64,"
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
 )
+
+
+@pytest.fixture(autouse=True)
+def use_mock_api_llm(monkeypatch):
+    # API flow tests remain deterministic even when the developer's .env points
+    # at a real local model for manual end-to-end testing.
+    monkeypatch.setattr("app.api.llm_client", MockLLMClient())
 
 
 def unique_username() -> str:
@@ -54,6 +73,282 @@ def test_normalize_confidence_handles_words_and_numbers():
     assert _normalize_confidence("medium") == 0.6
     assert _normalize_confidence("85%") == 0.85
     assert _normalize_confidence("0.42") == 0.42
+
+
+def test_lesson_normalizer_accepts_common_numeric_aliases():
+    payload = {
+        "quiz_questions": [
+            {
+                "answer_type": "number",
+                "expected_answer": 50,
+                "acceptable_answers": [50, "fifty"],
+            }
+        ],
+        "boss_mission": {
+            "questions": [{"answer_type": "integer", "expected_answer": 5}]
+        },
+    }
+
+    normalized, changes = _normalize_lesson_package(payload)
+
+    quiz = normalized["quiz_questions"][0]
+    boss = normalized["boss_mission"]["questions"][0]
+    assert quiz["answer_type"] == "numeric"
+    assert quiz["expected_answer"] == "50"
+    assert quiz["acceptable_answers"] == ["50", "fifty"]
+    assert quiz["difficulty"] == "easy"
+    assert boss["answer_type"] == "numeric"
+    assert boss["expected_answer"] == "5"
+    assert boss["difficulty"] == "hard"
+    assert len(changes) == 7
+
+
+def test_lesson_normalizer_handles_trace_field_aliases_and_extra_questions():
+    payload = {
+        "quiz_questions": [
+            {"id": 1, "question_type": "number", "expected_answer": "1969"}
+        ],
+        "boss_mission": {
+            "questions": [
+                {"id": index, "question": f"Question {index}"}
+                for index in range(6, 21)
+            ]
+        },
+    }
+
+    normalized, changes = _normalize_lesson_package(payload, 5, 10)
+
+    quiz = normalized["quiz_questions"][0]
+    assert quiz["id"] == "1"
+    assert quiz["answer_type"] == "numeric"
+    assert "question_type" not in quiz
+    assert len(normalized["boss_mission"]["questions"]) == 10
+    assert normalized["boss_mission"]["questions"][0]["id"] == "6"
+    assert "boss_mission.questions: trimmed to 10" in changes
+
+
+def test_lesson_response_format_requires_exact_question_counts():
+    response_format = _lesson_response_format(5, 10)
+    schema = response_format["json_schema"]["schema"]
+
+    assert response_format["type"] == "json_schema"
+    assert schema["properties"]["quiz_questions"]["minItems"] == 5
+    assert schema["properties"]["quiz_questions"]["maxItems"] == 5
+    boss_questions = schema["properties"]["boss_mission"]["properties"]["questions"]
+    assert boss_questions["minItems"] == 10
+    assert boss_questions["maxItems"] == 10
+    required = boss_questions["items"]["required"]
+    assert "answer_type" in required
+    assert "expected_answer" in required
+
+
+def test_verification_response_format_is_strict():
+    response_format = _verification_response_format()
+    schema = response_format["json_schema"]["schema"]
+
+    assert response_format["type"] == "json_schema"
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == {
+        "correct",
+        "confidence",
+        "feedback",
+        "observed_answer",
+    }
+
+
+def test_lesson_count_validation_rejects_short_model_output():
+    from app.schemas import LessonPackage
+
+    package = LessonPackage.model_validate(
+        {
+            "topic": "history",
+            "learner_level": "Primary school",
+            "lesson_steps": [
+                {"title": f"Step {index}", "body": "Body", "example": "Example"}
+                for index in range(6)
+            ],
+            "quiz_questions": [],
+            "boss_mission": {
+                "boss_name": "Boss",
+                "briefing": "Briefing",
+                "questions": [],
+            },
+        }
+    )
+
+    with pytest.raises(ValueError, match="exactly 5 items"):
+        _validate_lesson_counts(package, 5, 10)
+
+
+def test_lesson_generation_disables_thinking_for_structured_output(tmp_path, monkeypatch):
+    captured_payload = {}
+    valid_package = {
+        "topic": "addition",
+        "learner_level": "Primary school",
+        "lesson_steps": [
+            {"title": f"Step {index}", "body": "Learn", "example": "1 + 1 = 2"}
+            for index in range(6)
+        ],
+        "quiz_questions": [
+            {
+                "id": f"q{index}",
+                "question": "What is 1 + 1?",
+                "answer_type": "numeric",
+                "expected_answer": "2",
+                "acceptable_answers": ["2"],
+                "rubric": "Accept 2",
+                "difficulty": "easy",
+                "explanation": "One plus one is two.",
+            }
+            for index in range(5)
+        ],
+        "boss_mission": {
+            "boss_name": "Adder",
+            "briefing": "Defeat the Adder.",
+            "questions": [
+                {
+                    "id": f"b{index}",
+                    "question": "What is 2 + 2?",
+                    "answer_type": "numeric",
+                    "expected_answer": "4",
+                    "acceptable_answers": ["4"],
+                    "rubric": "Accept 4",
+                    "difficulty": "hard",
+                    "explanation": "Two plus two is four.",
+                }
+                for index in range(10)
+            ],
+        },
+    }
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "id": "structured-test",
+                "choices": [
+                    {"finish_reason": "stop", "message": {"content": json.dumps(valid_package)}}
+                ],
+                "usage": {},
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            captured_payload.update(kwargs["json"])
+            return FakeResponse()
+
+    monkeypatch.setattr("app.llm_clients.httpx.AsyncClient", FakeAsyncClient)
+    client = OpenAICompatibleLLMClient(
+        Settings(
+            llm_provider="openai_compatible",
+            llm_base_url="http://model.test",
+            llm_enable_thinking=True,
+            trace_destination="local",
+            trace_dir=str(tmp_path),
+        )
+    )
+
+    package = asyncio.run(
+        client.generate_lesson_package("addition", "Primary school", 5, 10)
+    )
+
+    assert package.topic == "addition"
+    assert captured_payload["chat_template_kwargs"] == {"enable_thinking": False}
+    assert captured_payload["response_format"]["type"] == "json_schema"
+
+
+def test_malformed_llm_json_is_repaired_and_traced(tmp_path, monkeypatch):
+    malformed = '{"answer": "Line up the decimal points" "extra": true}'
+
+    class FakeResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "id": "completion-test",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": malformed},
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr("app.llm_clients.httpx.AsyncClient", FakeAsyncClient)
+    settings = Settings(
+        llm_provider="openai_compatible",
+        llm_base_url="http://model.test",
+        trace_destination="local",
+        trace_dir=str(tmp_path),
+    )
+    client = OpenAICompatibleLLMClient(settings)
+
+    result = asyncio.run(
+        client._chat_json(
+            [{"role": "user", "content": "Return JSON."}],
+            max_tokens=50,
+            log_label="repair_test",
+            validator=lambda data: data,
+        )
+    )
+
+    assert result["answer"] == "Line up the decimal points"
+    trace_files = list(tmp_path.glob("*.json"))
+    assert len(trace_files) == 1
+    trace = json.loads(trace_files[0].read_text())
+    assert trace["status"] == "succeeded"
+    assert trace["repaired"] is True
+    assert any(event["type"] == "response" for event in trace["events"])
+    repair_event = next(event for event in trace["events"] if event["type"] == "json_repair")
+    assert "Expecting" in repair_event["initial_error"]
+    response_event = next(event for event in trace["events"] if event["type"] == "response")
+    assert response_event["raw_content"] == malformed
+
+
+def test_trace_redacts_image_data(tmp_path):
+    from app.llm_tracing import TraceRun
+
+    trace = TraceRun(
+        Settings(trace_destination="local", trace_dir=str(tmp_path)),
+        "image_test",
+    )
+    trace.event("request", image=PNG_DATA_URL, authorization="secret")
+    trace.finish("succeeded")
+
+    contents = next(tmp_path.glob("*.json")).read_text()
+    assert PNG_DATA_URL not in contents
+    assert "<image-data-url sha256=" in contents
+    assert '"authorization": "<redacted>"' in contents
 
 
 def test_register_login_and_duplicate_username():

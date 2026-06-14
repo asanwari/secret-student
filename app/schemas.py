@@ -102,6 +102,12 @@ class LessonResponse(BaseModel):
 class AskTeacherRequest(BaseModel):
     step_index: int = Field(ge=0)
     question: str = Field(min_length=1, max_length=500)
+    history: list["TeacherChatMessage"] = Field(default_factory=list, max_length=12)
+
+
+class TeacherChatMessage(BaseModel):
+    role: Literal["student", "teacher"]
+    content: str = Field(min_length=1, max_length=1200)
 
 
 class AskTeacherResponse(BaseModel):
