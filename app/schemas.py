@@ -79,6 +79,7 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     user: UserResponse
     game_state: GameStateResponse
+    session_token: str | None = None
 
 
 class MeResponse(AuthResponse):

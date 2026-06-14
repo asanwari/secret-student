@@ -50,7 +50,9 @@ def register(client: TestClient, username: str | None = None) -> dict:
         },
     )
     assert response.status_code == 200, response.text
-    return response.json()
+    payload = response.json()
+    client.headers["Authorization"] = f"Bearer {payload['session_token']}"
+    return payload
 
 
 def start_lesson(client: TestClient, topic: str = "decimal addition") -> dict:
@@ -355,7 +357,21 @@ def test_register_login_and_duplicate_username():
     init_db()
     username = unique_username()
     with TestClient(app) as client:
-        register(client, username)
+        registered = register(client, username)
+        assert registered["session_token"]
+        auth_cookie = client.cookies.get("secret_student_token")
+        assert auth_cookie == registered["session_token"]
+
+        # Space embeds can block third-party cookies. The returned bearer token
+        # must authenticate independently of the cookie set during registration.
+        client.cookies.clear()
+        bearer_me = client.get(
+            "/api/me",
+            headers={"Authorization": f"Bearer {registered['session_token']}"},
+        )
+        assert bearer_me.status_code == 200
+        assert bearer_me.json()["user"]["username"] == username
+
         duplicate = client.post(
             "/api/auth/register",
             json={
@@ -379,6 +395,7 @@ def test_register_login_and_duplicate_username():
         )
         assert login.status_code == 200
         assert login.json()["user"]["username"] == username
+        assert login.json()["session_token"]
 
 
 def test_full_mock_game_flow_boss_win():

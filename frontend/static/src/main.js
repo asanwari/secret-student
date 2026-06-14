@@ -1,4 +1,4 @@
-import { getJson, postJson } from "./api.js";
+import { getJson, postJson, setSessionToken } from "./api.js";
 import { createNotebook } from "./notebook.js";
 import { createScreenRouter } from "./router.js";
 import { createWorldController } from "./world.js";
@@ -164,6 +164,7 @@ async function submitAuth(event) {
   setLoading(true, state.authMode === "register" ? "Creating your cover identity..." : "Checking credentials...");
   try {
     const response = await postJson(`/api/auth/${state.authMode}`, payload);
+    setSessionToken(response.session_token);
     state.user = response.user;
     state.gameState = response.game_state;
     state.lesson = null;
@@ -178,7 +179,11 @@ async function submitAuth(event) {
 }
 
 async function logout() {
-  await postJson("/api/auth/logout");
+  try {
+    await postJson("/api/auth/logout");
+  } finally {
+    setSessionToken(null);
+  }
   state.user = null; state.gameState = null; state.lesson = null;
   setAuthMode("login");
   router.show("auth");

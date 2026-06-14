@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = (ROOT / "frontend/static/index.html").read_text()
 MAIN_JS = (ROOT / "frontend/static/src/main.js").read_text()
+API_JS = (ROOT / "frontend/static/src/api.js").read_text()
 WORLD_JS = (ROOT / "frontend/static/src/world.js").read_text()
 
 
@@ -11,6 +12,13 @@ def test_auth_is_the_only_initially_visible_game_screen():
     assert 'data-screen="auth"' in INDEX
     for screen in ("onboarding", "world", "school", "home", "hq", "quiz", "boss"):
         assert f'data-screen="{screen}" hidden' in INDEX
+
+
+def test_space_auth_uses_bearer_token_when_iframe_cookies_are_blocked():
+    assert "sessionStorage.setItem" in API_JS
+    assert "headers.Authorization = `Bearer ${token}`" in API_JS
+    assert "setSessionToken(response.session_token)" in MAIN_JS
+    assert "setSessionToken(null)" in MAIN_JS
 
 
 def test_world_is_created_lazily_after_authentication():

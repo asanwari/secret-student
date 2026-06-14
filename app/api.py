@@ -93,8 +93,9 @@ async def register(
     db.add(state)
     db.commit()
     db.refresh(user)
-    _set_auth_cookie(response, user.id)
-    return _auth_response(user, state)
+    token = create_session_token(user.id)
+    _set_auth_cookie(response, token)
+    return _auth_response(user, state, token)
 
 
 @app.post("/api/auth/login", response_model=AuthResponse)
@@ -107,8 +108,9 @@ async def login(
     if user is None or not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     state = _ensure_state(db, user)
-    _set_auth_cookie(response, user.id)
-    return _auth_response(user, state)
+    token = create_session_token(user.id)
+    _set_auth_cookie(response, token)
+    return _auth_response(user, state, token)
 
 
 @app.post("/api/auth/logout")
@@ -390,12 +392,13 @@ async def update_location(
     return _state_response(state)
 
 
-def _set_auth_cookie(response: Response, user_id: int) -> None:
+def _set_auth_cookie(response: Response, token: str) -> None:
     response.set_cookie(
         "secret_student_token",
-        create_session_token(user_id),
+        token,
         httponly=True,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=60 * 60 * 24 * 30,
     )
 
@@ -410,8 +413,14 @@ def _ensure_state(db: Session, user: User) -> GameState:
     return state
 
 
-def _auth_response(user: User, state: GameState) -> AuthResponse:
-    return AuthResponse(user=_user_response(user), game_state=_state_response(state))
+def _auth_response(
+    user: User, state: GameState, session_token: str | None = None
+) -> AuthResponse:
+    return AuthResponse(
+        user=_user_response(user),
+        game_state=_state_response(state),
+        session_token=session_token,
+    )
 
 
 def _user_response(user: User) -> UserResponse:
