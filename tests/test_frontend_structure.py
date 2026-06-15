@@ -98,14 +98,23 @@ def test_layered_character_uses_shared_sprite_contract():
     assert 'const DIRECTIONS = { down: 0, left: 1, right: 2, up: 3 }' in character
     assert 'Math.floor(time / 125)' in character
     assert 'resolveCharacterFacing' in character
+    assert 'characterAssetUrl' in character
+    assert 'previewDrawIds' in character
     for color in ("red", "blue", "green", "yellow", "purple", "teal"):
         assert f"{color}:" in character
     for color in ("navy", "charcoal", "brown", "olive", "blue", "plum"):
         assert f"{color}:" in character
     for color in ("black", "dark_brown", "brown", "blond", "auburn"):
         assert f"{color}:" in character
-    for layer in ("gear-back", "body", "pants", "shirt", "hair", "gear-front"):
+    for layer in ("gear-back", "body", "gear-front"):
         assert (ROOT / f"frontend/static/assets/player/student-{layer}.png").is_file()
+    for layer, colors in {
+        "shirt": ("red", "blue", "green", "yellow", "purple", "teal"),
+        "pants": ("navy", "charcoal", "brown", "olive", "blue", "plum"),
+        "hair": ("black", "dark_brown", "brown", "blond", "auburn"),
+    }.items():
+        for color in colors:
+            assert (ROOT / f"frontend/static/assets/player/student-{layer}-{color}.png").is_file()
 
 
 def test_quiz_and_boss_wait_for_explicit_progression():

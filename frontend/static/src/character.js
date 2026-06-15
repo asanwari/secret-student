@@ -9,11 +9,19 @@ export const APPEARANCE_COLORS = {
 const DIRECTIONS = { down: 0, left: 1, right: 2, up: 3 };
 const TINTED_LAYERS = { pants: "pants", shirt: "shirt", hair: "hair" };
 const DEFAULT_APPEARANCE = { shirt: "red", pants: "navy", hair: "dark_brown" };
-const assetUrl = (layer) => `/game-static/assets/player/student-${layer}.png`;
+const colorName = (palette, appearance) => {
+  const selected = appearance[`${palette}_color`];
+  return Object.hasOwn(APPEARANCE_COLORS[palette], selected) ? selected : DEFAULT_APPEARANCE[palette];
+};
+export const characterAssetUrl = (layer, appearance = {}) => {
+  const palette = TINTED_LAYERS[layer];
+  const suffix = palette ? `-${colorName(palette, appearance)}` : "";
+  return `/game-static/assets/player/student-${layer}${suffix}.png`;
+};
 
-export function preloadCharacter(scene) {
+export function preloadCharacter(scene, appearance = {}) {
   CHARACTER_LAYERS.forEach((layer) => {
-    scene.load.spritesheet(`student-${layer}`, assetUrl(layer), { frameWidth: CHARACTER_FRAME.width, frameHeight: CHARACTER_FRAME.height });
+    scene.load.spritesheet(`student-${layer}`, characterAssetUrl(layer, appearance), { frameWidth: CHARACTER_FRAME.width, frameHeight: CHARACTER_FRAME.height });
   });
 }
 
@@ -22,8 +30,6 @@ export function createCharacter(scene, x, y, appearance = {}) {
   const shadow = scene.add.ellipse(0, 1, 24, 8, 0x17202a, .28);
   const sprites = CHARACTER_LAYERS.map((layer) => {
     const sprite = scene.add.sprite(0, -24, `student-${layer}`, 1).setOrigin(.5, .5);
-    const palette = TINTED_LAYERS[layer];
-    if (palette) sprite.setTint(APPEARANCE_COLORS[palette][appearance[`${palette}_color`]] || APPEARANCE_COLORS[palette][DEFAULT_APPEARANCE[palette]]);
     return sprite;
   });
   container.add([shadow, ...sprites]);
@@ -48,51 +54,32 @@ export function updateCharacter(rig, dx, dy, time) {
   rig.sprites.forEach((sprite) => sprite.setFrame(frame));
 }
 
-let previewImages = null;
+const previewImages = new Map();
+const previewDrawIds = new WeakMap();
 
-function loadPreviewImages() {
-  if (!previewImages) {
-    previewImages = Promise.all(CHARACTER_LAYERS.map((layer) => new Promise((resolve, reject) => {
+function loadPreviewImages(appearance) {
+  const urls = CHARACTER_LAYERS.map((layer) => [layer, characterAssetUrl(layer, appearance)]);
+  const key = urls.map(([, url]) => url).join("|");
+  if (!previewImages.has(key)) {
+    previewImages.set(key, Promise.all(urls.map(([layer, url]) => new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve([layer, image]);
       image.onerror = reject;
-      image.src = assetUrl(layer);
-    }))).then(Object.fromEntries);
+      image.src = url;
+    }))).then(Object.fromEntries));
   }
-  return previewImages;
-}
-
-function colorHex(value) {
-  return `#${value.toString(16).padStart(6, "0")}`;
-}
-
-function drawTintedFrame(context, image, tint, x, y) {
-  const buffer = document.createElement("canvas");
-  buffer.width = CHARACTER_FRAME.width;
-  buffer.height = CHARACTER_FRAME.height;
-  const bufferContext = buffer.getContext("2d");
-  bufferContext.imageSmoothingEnabled = false;
-  bufferContext.drawImage(image, CHARACTER_FRAME.width, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height, 0, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height);
-  bufferContext.globalCompositeOperation = "multiply";
-  bufferContext.fillStyle = colorHex(tint);
-  bufferContext.fillRect(0, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height);
-  bufferContext.globalCompositeOperation = "destination-in";
-  bufferContext.drawImage(image, CHARACTER_FRAME.width, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height, 0, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height);
-  context.drawImage(buffer, x, y);
+  return previewImages.get(key);
 }
 
 export async function drawCharacterPreview(canvas, appearance = {}) {
-  const images = await loadPreviewImages();
+  const drawId = (previewDrawIds.get(canvas) || 0) + 1;
+  previewDrawIds.set(canvas, drawId);
+  const images = await loadPreviewImages(appearance);
+  if (previewDrawIds.get(canvas) !== drawId) return;
   const context = canvas.getContext("2d");
   context.imageSmoothingEnabled = false;
   context.clearRect(0, 0, canvas.width, canvas.height);
   for (const layer of CHARACTER_LAYERS) {
-    const palette = TINTED_LAYERS[layer];
-    if (palette) {
-      const tint = APPEARANCE_COLORS[palette][appearance[`${palette}_color`]] || APPEARANCE_COLORS[palette][DEFAULT_APPEARANCE[palette]];
-      drawTintedFrame(context, images[layer], tint, 0, 0);
-    } else {
-      context.drawImage(images[layer], CHARACTER_FRAME.width, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height, 0, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height);
-    }
+    context.drawImage(images[layer], CHARACTER_FRAME.width, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height, 0, 0, CHARACTER_FRAME.width, CHARACTER_FRAME.height);
   }
 }

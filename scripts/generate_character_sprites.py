@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageColor, ImageDraw
 
 
 FRAME_WIDTH = 32
@@ -171,6 +171,27 @@ DRAWERS = {
     "gear-front": draw_gear_front,
 }
 
+PALETTES = {
+    "shirt": {
+        "red": "#d94b48", "blue": "#3f71b5", "green": "#4d8d59",
+        "yellow": "#e1b840", "purple": "#765495", "teal": "#398b87",
+    },
+    "pants": {
+        "navy": "#263b60", "charcoal": "#3d4148", "brown": "#6f4d3b",
+        "olive": "#5d673f", "blue": "#365f86", "plum": "#61405d",
+    },
+    "hair": {
+        "black": "#1d2025", "dark_brown": "#3b271f", "brown": "#70462c",
+        "blond": "#c99a45", "auburn": "#8a3f2c",
+    },
+}
+
+
+def tint_atlas(atlas, color):
+    solid = Image.new("RGB", atlas.size, ImageColor.getrgb(color))
+    shaded = ImageChops.multiply(atlas.convert("RGB"), solid)
+    return Image.merge("RGBA", (*shaded.split(), atlas.getchannel("A")))
+
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -180,7 +201,11 @@ def main():
         for direction_index, direction in enumerate(DIRECTIONS):
             for step_index, step in enumerate(STEPS):
                 drawer(draw, *frame_origin(direction_index, step_index), direction, step)
-        atlas.save(OUTPUT_DIR / f"student-{name}.png", optimize=True)
+        if name in PALETTES:
+            for color_name, color in PALETTES[name].items():
+                tint_atlas(atlas, color).save(OUTPUT_DIR / f"student-{name}-{color_name}.png", optimize=True)
+        else:
+            atlas.save(OUTPUT_DIR / f"student-{name}.png", optimize=True)
 
 
 if __name__ == "__main__":

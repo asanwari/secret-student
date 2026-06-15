@@ -61,7 +61,7 @@ export function createWorldController({
 
     preload() {
       this.load.image("world-map-agent", "/game-static/assets/world-map-agent.png");
-      preloadCharacter(this);
+      preloadCharacter(this, getPlayerAppearance?.() || {});
     }
 
     create() {
