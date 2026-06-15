@@ -10,16 +10,27 @@ from app.api import app as fastapi_app
 
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend" / "static"
+GAME_ASSET_VERSION = "20260615-2"
+
+
+class RevalidatingStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: dict):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
+        return response
 
 
 @fastapi_app.get("/game", include_in_schema=False)
 async def game_index() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(
+        FRONTEND_DIR / "index.html",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 fastapi_app.mount(
     "/game-static",
-    StaticFiles(directory=FRONTEND_DIR),
+    RevalidatingStaticFiles(directory=FRONTEND_DIR),
     name="game-static",
 )
 
@@ -32,11 +43,11 @@ def _gradio_shell() -> gr.Blocks:
             """
             <iframe
               title="Secret Student game"
-              src="/game"
+              src="/game?v={GAME_ASSET_VERSION}"
               style="width:100%;height:min(92vh,900px);border:0;border-radius:8px;background:#111827;"
               allow="camera; microphone; clipboard-read; clipboard-write"
             ></iframe>
-            """
+            """.format(GAME_ASSET_VERSION=GAME_ASSET_VERSION)
         )
     return demo
 

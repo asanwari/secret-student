@@ -28,6 +28,14 @@ def test_world_is_created_lazily_after_authentication():
     assert 'if (next === "world")' in MAIN_JS
 
 
+def test_game_assets_use_deployment_cache_busting():
+    assert 'src="/game-static/src/main.js?v=20260615-2"' in INDEX
+    assert 'href="/game-static/src/styles.css?v=20260615-2"' in INDEX
+    assert './world.js?v=20260615-2' in MAIN_JS
+    assert './character.js?v=20260615-2' in WORLD_JS
+    assert 'world-map-agent.png?v=20260615-2' in WORLD_JS
+
+
 def test_world_keyboard_is_disabled_off_screen_and_ignores_editable_focus():
     assert 'if (!active || isEditableTarget(event.target)' in WORLD_JS
     assert 'window.addEventListener("keydown", handleKeyDown)' in WORLD_JS
@@ -84,8 +92,8 @@ def test_character_customization_is_registered_and_used_by_world():
     assert 'name="hairColor"' in INDEX
     assert "payload.character_appearance = selectedAppearance()" in MAIN_JS
     assert "getPlayerAppearance" in WORLD_JS
-    assert 'from "./character.js"' in MAIN_JS
-    assert 'from "./character.js"' in WORLD_JS
+    assert 'from "./character.js?v=20260615-2"' in MAIN_JS
+    assert 'from "./character.js?v=20260615-2"' in WORLD_JS
     assert "createCharacter" in WORLD_JS
     assert "updateCharacter" in WORLD_JS
     assert "drawCharacterPreview" in MAIN_JS

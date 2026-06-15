@@ -16,7 +16,7 @@ const colorName = (palette, appearance) => {
 export const characterAssetUrl = (layer, appearance = {}) => {
   const palette = TINTED_LAYERS[layer];
   const suffix = palette ? `-${colorName(palette, appearance)}` : "";
-  return `/game-static/assets/player/student-${layer}${suffix}.png`;
+  return `/game-static/assets/player/student-${layer}${suffix}.png?v=20260615-2`;
 };
 
 export function preloadCharacter(scene, appearance = {}) {

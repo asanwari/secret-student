@@ -1,8 +1,8 @@
-import { getJson, postJson, setSessionToken } from "./api.js";
-import { createNotebook } from "./notebook.js";
-import { createScreenRouter } from "./router.js";
-import { createWorldController } from "./world.js";
-import { drawCharacterPreview } from "./character.js";
+import { getJson, postJson, setSessionToken } from "./api.js?v=20260615-2";
+import { createNotebook } from "./notebook.js?v=20260615-2";
+import { createScreenRouter } from "./router.js?v=20260615-2";
+import { createWorldController } from "./world.js?v=20260615-2";
+import { drawCharacterPreview } from "./character.js?v=20260615-2";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];

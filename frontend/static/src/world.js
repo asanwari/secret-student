@@ -1,4 +1,4 @@
-import { createCharacter, preloadCharacter, updateCharacter } from "./character.js";
+import { createCharacter, preloadCharacter, updateCharacter } from "./character.js?v=20260615-2";
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
@@ -62,7 +62,7 @@ export function createWorldController({
     constructor() { super("WorldScene"); }
 
     preload() {
-      this.load.image("world-map-agent", "/game-static/assets/world-map-agent.png");
+      this.load.image("world-map-agent", "/game-static/assets/world-map-agent.png?v=20260615-2");
       preloadCharacter(this, getPlayerAppearance?.() || {});
     }
 
