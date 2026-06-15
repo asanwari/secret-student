@@ -36,6 +36,21 @@ tags:
 
 **Learn at school. Get briefed by "Grandma". Defeat a villain with what you learned.**
 
+<p align="center">
+  <img src="frontend/static/assets/world-map-agent.png" alt="Pixel-art Secret Student main map with school, home, and headquarters">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="frontend/static/assets/classroom-blank.png" alt="Pixel-art Secret Student classroom"></td>
+    <td width="50%"><img src="frontend/static/assets/bedroom-agent.png" alt="Pixel-art Secret Student bedroom"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>School: lessons, teacher chat, and quizzes</strong></td>
+    <td align="center"><strong>Home: review and mission briefings</strong></td>
+  </tr>
+</table>
+
 </div>
 
 Secret Student turns an AI-generated lesson into a retro 2D mission. The player
@@ -204,21 +219,6 @@ its configured subroute.
 6. **Enter headquarters.** Fight a villain by answering harder questions based
    on the lesson. Correct answers damage the boss; mistakes cost health.
 7. **Start another mission.** Return to the map and learn something new.
-
-<p align="center">
-  <img src="frontend/static/assets/world-map-agent.png" alt="Pixel-art Secret Student main map with school, home, and headquarters">
-</p>
-
-<table>
-  <tr>
-    <td width="50%"><img src="frontend/static/assets/classroom-blank.png" alt="Pixel-art Secret Student classroom"></td>
-    <td width="50%"><img src="frontend/static/assets/bedroom-agent.png" alt="Pixel-art Secret Student bedroom"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>School: lessons, teacher chat, and quizzes</strong></td>
-    <td align="center"><strong>Home: review and mission briefings</strong></td>
-  </tr>
-</table>
 
 ## Small Models, Separate Jobs
 
