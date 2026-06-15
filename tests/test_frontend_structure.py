@@ -138,7 +138,8 @@ def test_touch_navigation_supports_press_and_hold_cleanup():
 
 def test_generated_room_and_character_art_are_wired_with_fallbacks():
     assert "/game-static/assets/bedroom-agent.png" in (ROOT / "frontend/static/src/styles.css").read_text()
+    assert "/game-static/assets/world-map-agent.png" in (ROOT / "frontend/static/src/world.js").read_text()
     assert "/game-static/assets/codename-grandma.png" in INDEX
     assert "/game-static/assets/villain-default.png" in INDEX
     assert "safeVillainUrl" in MAIN_JS
-    assert 'drawBuilding(scene, buildings.hq, 0x4f7f78, 0x273d52, "GRANDMA"' in WORLD_JS
+    assert 'drawBuildingHotspot(scene, buildings.hq, "GRANDMA", "hq")' in WORLD_JS

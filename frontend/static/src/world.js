@@ -61,6 +61,10 @@ export function createWorldController({
   class WorldScene extends Phaser.Scene {
     constructor() { super("WorldScene"); }
 
+    preload() {
+      this.load.image("world-map-agent", "/game-static/assets/world-map-agent.png");
+    }
+
     create() {
       sceneRef = this;
       drawMap(this);
@@ -100,16 +104,12 @@ export function createWorldController({
     scene.children.removeAll();
     const width = scene.scale.width || WORLD_WIDTH;
     const height = scene.scale.height || WORLD_HEIGHT;
-    scene.add.rectangle(width / 2, height / 2, width, height, 0x75bd79);
-    drawGrass(scene, width, height);
-    scene.add.rectangle(width / 2, height * .5, width, 104, 0xdab86c).setStrokeStyle(5, 0x263238);
-    scene.add.rectangle(width / 2, height * .7, 104, height * .42, 0xdab86c).setStrokeStyle(5, 0x263238);
+    scene.add.image(width / 2, height / 2, "world-map-agent").setDisplaySize(width, height);
 
     const buildings = positions(width, height);
-    drawBuilding(scene, buildings.school, 0xe7b34d, 0xc94f46, "SCHOOL", "school");
-    drawBuilding(scene, buildings.home, 0xe9955d, 0x6b4d83, "HOME", "home");
-    drawBuilding(scene, buildings.hq, 0x4f7f78, 0x273d52, "GRANDMA", "hq");
-    drawTrees(scene, width, height);
+    drawBuildingHotspot(scene, buildings.school, "SCHOOL", "school");
+    drawBuildingHotspot(scene, buildings.home, "HOME", "home");
+    drawBuildingHotspot(scene, buildings.hq, "GRANDMA", "hq");
 
     player = scene.add.container(
       savedPlayerPosition?.x ?? width / 2,
@@ -142,48 +142,21 @@ export function createWorldController({
 
   function positions(width, height) {
     return {
-      school: { x: width * .2, y: height * .28, width: 230, height: 145 },
-      home: { x: width * .8, y: height * .28, width: 215, height: 140 },
-      hq: { x: width * .5, y: height * .84, width: 270, height: 130 },
+      school: { x: width * .24, y: height * .23, width: width * .36, height: height * .35, entranceX: width * .25, entranceY: height * .4 },
+      home: { x: width * .74, y: height * .23, width: width * .25, height: height * .34, entranceX: width * .75, entranceY: height * .4 },
+      hq: { x: width * .5, y: height * .79, width: width * .25, height: height * .28, entranceX: width * .52, entranceY: height * .91 },
     };
   }
 
-  function drawGrass(scene, width, height) {
-    const graphics = scene.add.graphics();
-    graphics.lineStyle(2, 0x5aaa69, .5);
-    for (let x = 18; x < width; x += 38) {
-      for (let y = 22; y < height; y += 36) graphics.lineBetween(x, y, x + 4, y - 8);
-    }
-  }
-
-  function drawBuilding(scene, item, wall, roof, label, kind) {
-    const { x, y, width, height } = item;
-    scene.add.rectangle(x, y, width, height, wall).setStrokeStyle(6, 0x17202a);
-    const roofShape = scene.add.triangle(x, y - height / 2 - 38, 0, 74, width / 2 + 22, 0, width + 44, 74, roof).setStrokeStyle(6, 0x17202a);
-    roofShape.setOrigin(.5);
-    scene.add.rectangle(x, y + height / 2 - 35, 50, 70, 0xfff2c6).setStrokeStyle(4, 0x17202a);
-    scene.add.rectangle(x - width * .28, y - 8, 42, 38, 0x9fe1e0).setStrokeStyle(4, 0x17202a);
-    scene.add.rectangle(x + width * .28, y - 8, 42, 38, 0x9fe1e0).setStrokeStyle(4, 0x17202a);
-    const signWidth = Math.min(width - 24, Math.max(100, label.length * 14));
-    scene.add.rectangle(x, y - 8, signWidth, 32, 0xfff2c6, .96).setStrokeStyle(3, 0x17202a);
-    scene.add.text(x, y - 8, label, {
-      fontFamily: "monospace", fontSize: "16px", fontStyle: "bold", color: "#17202a", align: "center",
-      wordWrap: { width: width - 30 },
-    }).setOrigin(.5);
+  function drawBuildingHotspot(scene, item, label, kind) {
+    const { x, y, width, height, entranceX, entranceY } = item;
+    scene.add.text(entranceX, entranceY - 20, label, {
+      fontFamily: "monospace", fontSize: "13px", fontStyle: "bold", color: "#17202a",
+      backgroundColor: "#fff2c7", padding: { x: 7, y: 4 },
+    }).setOrigin(.5).setStroke("#fff2c7", 2);
     scene.add.zone(x, y, width, height + 70).setInteractive({ useHandCursor: true }).on("pointerdown", () => {
       if (active) onEnterBuilding(kind);
     });
-  }
-
-  function drawTrees(scene, width, height) {
-    const locations = [[.06,.17],[.36,.17],[.64,.16],[.94,.18],[.08,.72],[.88,.72],[.23,.84],[.77,.86]];
-    for (const [rx, ry] of locations) {
-      const x = width * rx; const y = height * ry;
-      scene.add.rectangle(x, y + 23, 14, 48, 0x80543d).setStrokeStyle(3, 0x17202a);
-      scene.add.circle(x, y - 5, 34, 0x3f8b58).setStrokeStyle(4, 0x17202a);
-      scene.add.circle(x - 22, y + 4, 23, 0x55a665).setStrokeStyle(3, 0x17202a);
-      scene.add.circle(x + 22, y + 4, 23, 0x55a665).setStrokeStyle(3, 0x17202a);
-    }
   }
 
   function move(dx, dy) {
@@ -197,7 +170,7 @@ export function createWorldController({
     if (!sceneRef || !player) return;
     const list = positions(sceneRef.scale.width, sceneRef.scale.height);
     nearbyBuilding = Object.entries(list).find(([, item]) =>
-      Phaser.Math.Distance.Between(player.x, player.y, item.x, item.y + item.height / 2) < 125,
+      Phaser.Math.Distance.Between(player.x, player.y, item.entranceX, item.entranceY) < 105,
     )?.[0] || null;
     onNearbyChange(nearbyBuilding);
   }
