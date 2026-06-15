@@ -1,10 +1,7 @@
+import { createCharacter, preloadCharacter, updateCharacter } from "./character.js";
+
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
-const APPEARANCE_COLORS = {
-  shirt: { red: 0xd94b48, blue: 0x3f71b5, green: 0x4d8d59, yellow: 0xe1b840, purple: 0x765495, teal: 0x398b87 },
-  pants: { navy: 0x263b60, charcoal: 0x3d4148, brown: 0x6f4d3b, olive: 0x5d673f, blue: 0x365f86, plum: 0x61405d },
-  hair: { black: 0x1d2025, dark_brown: 0x3b271f, brown: 0x70462c, blond: 0xc99a45, auburn: 0x8a3f2c },
-};
 
 function isEditableTarget(target) {
   return target instanceof HTMLElement && (
@@ -23,6 +20,7 @@ export function createWorldController({
 }) {
   let active = false;
   let player = null;
+  let playerRig = null;
   let nearbyBuilding = null;
   let sceneRef = null;
   let savedPlayerPosition = initialPlayerPosition;
@@ -63,6 +61,7 @@ export function createWorldController({
 
     preload() {
       this.load.image("world-map-agent", "/game-static/assets/world-map-agent.png");
+      preloadCharacter(this);
     }
 
     create() {
@@ -80,13 +79,14 @@ export function createWorldController({
       if (pressedKeys.has("arrowright") || pressedKeys.has("d") || heldDirections.has("right")) dx += speed;
       if (pressedKeys.has("arrowup") || pressedKeys.has("w") || heldDirections.has("up")) dy -= speed;
       if (pressedKeys.has("arrowdown") || pressedKeys.has("s") || heldDirections.has("down")) dy += speed;
+      updateCharacter(playerRig, dx, dy, this.time.now);
       if (dx || dy) move(dx, dy);
     }
   }
 
   const game = new Phaser.Game({
-    // The map only uses 2D primitives. Canvas is more reliable than a WebGL
-    // context when the Gradio iframe or game screen is repeatedly hidden.
+    // Canvas is more reliable than a WebGL context when the Gradio iframe or
+    // game screen is repeatedly hidden.
     type: Phaser.CANVAS,
     parent: mountId,
     width: WORLD_WIDTH,
@@ -111,32 +111,14 @@ export function createWorldController({
     drawBuildingHotspot(scene, buildings.home, "HOME", "home");
     drawBuildingHotspot(scene, buildings.hq, "GRANDMA", "hq");
 
-    player = scene.add.container(
+    playerRig = createCharacter(
+      scene,
       savedPlayerPosition?.x ?? width / 2,
       savedPlayerPosition?.y ?? height * .5,
+      getPlayerAppearance?.() || {},
     );
-    const appearance = getPlayerAppearance?.() || {};
-    const shirt = APPEARANCE_COLORS.shirt[appearance.shirt_color] || APPEARANCE_COLORS.shirt.red;
-    const pants = APPEARANCE_COLORS.pants[appearance.pants_color] || APPEARANCE_COLORS.pants.navy;
-    const hair = APPEARANCE_COLORS.hair[appearance.hair_color] || APPEARANCE_COLORS.hair.dark_brown;
-    const shadow = scene.add.ellipse(0, 23, 34, 11, 0x263238, .32);
-    const backpack = scene.add.rectangle(13, -1, 15, 30, 0xd5a637).setStrokeStyle(3, 0x17202a);
-    const backPocket = scene.add.rectangle(17, 4, 7, 12, 0xf0ca58).setStrokeStyle(2, 0x17202a);
-    const leftLeg = scene.add.rectangle(-7, 17, 9, 20, pants).setStrokeStyle(3, 0x17202a);
-    const rightLeg = scene.add.rectangle(7, 17, 9, 20, pants).setStrokeStyle(3, 0x17202a);
-    const leftShoe = scene.add.rectangle(-8, 28, 13, 7, 0x202a35).setStrokeStyle(2, 0x17202a);
-    const rightShoe = scene.add.rectangle(8, 28, 13, 7, 0x202a35).setStrokeStyle(2, 0x17202a);
-    const leftArm = scene.add.rectangle(-16, 0, 8, 25, shirt).setStrokeStyle(3, 0x17202a).setAngle(8);
-    const body = scene.add.rectangle(0, -1, 25, 31, shirt).setStrokeStyle(3, 0x17202a);
-    const collar = scene.add.triangle(0, -11, -7, 0, 7, 0, 0, 7, 0xfff2c6).setStrokeStyle(2, 0x17202a);
-    const rightArm = scene.add.rectangle(16, 0, 8, 25, shirt).setStrokeStyle(3, 0x17202a).setAngle(-8);
-    const neck = scene.add.rectangle(0, -19, 8, 7, 0xe8ae7c).setStrokeStyle(2, 0x17202a);
-    const head = scene.add.rectangle(0, -30, 23, 21, 0xf1bd8b).setStrokeStyle(3, 0x17202a);
-    const hairBack = scene.add.rectangle(0, -36, 25, 11, hair).setStrokeStyle(3, 0x17202a);
-    const hairFringe = scene.add.rectangle(-6, -31, 12, 7, hair);
-    const eyeLeft = scene.add.rectangle(-5, -29, 2, 3, 0x17202a);
-    const eyeRight = scene.add.rectangle(5, -29, 2, 3, 0x17202a);
-    player.add([shadow, backpack, backPocket, leftLeg, rightLeg, leftShoe, rightShoe, leftArm, body, collar, rightArm, neck, head, hairBack, hairFringe, eyeLeft, eyeRight]);
+    player = playerRig.container;
+    updateCharacter(playerRig, 0, 0, 0);
     updateNearby();
   }
 

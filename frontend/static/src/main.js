@@ -2,6 +2,7 @@ import { getJson, postJson, setSessionToken } from "./api.js";
 import { createNotebook } from "./notebook.js";
 import { createScreenRouter } from "./router.js";
 import { createWorldController } from "./world.js";
+import { drawCharacterPreview } from "./character.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -656,10 +657,7 @@ function selectedAppearance() {
 
 function updateCharacterPreview() {
   const preview = $(".character-preview");
-  const appearance = selectedAppearance();
-  preview.dataset.shirt = appearance.shirt_color;
-  preview.dataset.pants = appearance.pants_color;
-  preview.dataset.hair = appearance.hair_color;
+  drawCharacterPreview(preview, selectedAppearance());
 }
 
 function buildingLabel(kind) {

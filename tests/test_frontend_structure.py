@@ -84,8 +84,28 @@ def test_character_customization_is_registered_and_used_by_world():
     assert 'name="hairColor"' in INDEX
     assert "payload.character_appearance = selectedAppearance()" in MAIN_JS
     assert "getPlayerAppearance" in WORLD_JS
-    assert "APPEARANCE_COLORS" in WORLD_JS
-    assert "backpack" in WORLD_JS
+    assert 'from "./character.js"' in MAIN_JS
+    assert 'from "./character.js"' in WORLD_JS
+    assert "createCharacter" in WORLD_JS
+    assert "updateCharacter" in WORLD_JS
+    assert "drawCharacterPreview" in MAIN_JS
+
+
+def test_layered_character_uses_shared_sprite_contract():
+    character = (ROOT / "frontend/static/src/character.js").read_text()
+    assert 'width: 32, height: 48' in character
+    assert '["gear-back", "body", "pants", "shirt", "hair", "gear-front"]' in character
+    assert 'const DIRECTIONS = { down: 0, left: 1, right: 2, up: 3 }' in character
+    assert 'Math.floor(time / 125)' in character
+    assert 'resolveCharacterFacing' in character
+    for color in ("red", "blue", "green", "yellow", "purple", "teal"):
+        assert f"{color}:" in character
+    for color in ("navy", "charcoal", "brown", "olive", "blue", "plum"):
+        assert f"{color}:" in character
+    for color in ("black", "dark_brown", "brown", "blond", "auburn"):
+        assert f"{color}:" in character
+    for layer in ("gear-back", "body", "pants", "shirt", "hair", "gear-front"):
+        assert (ROOT / f"frontend/static/assets/player/student-{layer}.png").is_file()
 
 
 def test_quiz_and_boss_wait_for_explicit_progression():

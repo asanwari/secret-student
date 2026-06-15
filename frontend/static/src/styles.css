@@ -90,28 +90,10 @@ label { display: grid; gap: 7px; font-weight: 800; }
 #cameraPreview, #cameraCanvas { width: 100%; border: 3px solid #17202a; background: #17202a; }
 .appearance-fields { display: grid; grid-template-columns: 96px 1fr; gap: 9px 14px; margin: 0; padding: 12px; border: 3px solid #17202a; }
 .appearance-fields legend { padding: 0 7px; font-weight: 900; }
-.character-preview { position: relative; grid-row: 1 / span 3; align-self: center; width: 78px; height: 118px; margin: auto; border: 3px solid #17202a; background: #b9ded5; overflow: hidden; }
-.character-preview > div { position: absolute; border: 2px solid #17202a; }
-.preview-backpack { left: 47px; top: 48px; width: 19px; height: 42px; background: #d5a637; }
-.preview-head { left: 25px; top: 23px; width: 29px; height: 27px; background: #f1bd8b; }
-.preview-hair { z-index: 2; left: 23px; top: 17px; width: 33px; height: 17px; background: #3b271f; }
-.preview-shirt { left: 23px; top: 49px; width: 34px; height: 37px; background: #d94b48; }
-.preview-arm { top: 53px; width: 10px; height: 35px; background: #d94b48; }
-.preview-arm.left { left: 14px; transform: rotate(7deg); }.preview-arm.right { right: 11px; transform: rotate(-7deg); }
-.preview-pants { left: 24px; top: 84px; width: 32px; height: 13px; background: #263b60; }
-.preview-leg { top: 94px; width: 13px; height: 20px; background: #263b60; }.preview-leg.left { left: 25px; }.preview-leg.right { left: 43px; }
-.character-preview[data-shirt="blue"] .preview-shirt, .character-preview[data-shirt="blue"] .preview-arm { background:#3f71b5; }
-.character-preview[data-shirt="green"] .preview-shirt, .character-preview[data-shirt="green"] .preview-arm { background:#4d8d59; }
-.character-preview[data-shirt="yellow"] .preview-shirt, .character-preview[data-shirt="yellow"] .preview-arm { background:#e1b840; }
-.character-preview[data-shirt="purple"] .preview-shirt, .character-preview[data-shirt="purple"] .preview-arm { background:#765495; }
-.character-preview[data-shirt="teal"] .preview-shirt, .character-preview[data-shirt="teal"] .preview-arm { background:#398b87; }
-.character-preview[data-pants="charcoal"] .preview-pants, .character-preview[data-pants="charcoal"] .preview-leg { background:#3d4148; }
-.character-preview[data-pants="brown"] .preview-pants, .character-preview[data-pants="brown"] .preview-leg { background:#6f4d3b; }
-.character-preview[data-pants="olive"] .preview-pants, .character-preview[data-pants="olive"] .preview-leg { background:#5d673f; }
-.character-preview[data-pants="blue"] .preview-pants, .character-preview[data-pants="blue"] .preview-leg { background:#365f86; }
-.character-preview[data-pants="plum"] .preview-pants, .character-preview[data-pants="plum"] .preview-leg { background:#61405d; }
-.character-preview[data-hair="black"] .preview-hair { background:#1d2025; }.character-preview[data-hair="brown"] .preview-hair { background:#70462c; }
-.character-preview[data-hair="blond"] .preview-hair { background:#c99a45; }.character-preview[data-hair="auburn"] .preview-hair { background:#8a3f2c; }
+.character-preview {
+  grid-row: 1 / span 3; align-self: center; width: 80px; height: 120px; margin: auto;
+  border: 3px solid #17202a; background: #b9ded5; image-rendering: pixelated;
+}
 .swatch-section { display: grid; gap: 4px; font-size: .75rem; font-weight: 900; }
 .color-swatches { display: flex; flex-wrap: wrap; gap: 5px; }
 .color-swatches label { display: block; position: relative; }
