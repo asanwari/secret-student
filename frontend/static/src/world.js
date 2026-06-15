@@ -2,6 +2,8 @@ import { createCharacter, preloadCharacter, updateCharacter } from "./character.
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 640;
+const PLAYER_SPEED = 1.8;
+const TOUCH_MOVE_STEP = 15;
 
 function isEditableTarget(target) {
   return target instanceof HTMLElement && (
@@ -72,13 +74,12 @@ export function createWorldController({
 
     update() {
       if (!active || !player || isEditableTarget(document.activeElement)) return;
-      const speed = 3.6;
       let dx = 0;
       let dy = 0;
-      if (pressedKeys.has("arrowleft") || pressedKeys.has("a") || heldDirections.has("left")) dx -= speed;
-      if (pressedKeys.has("arrowright") || pressedKeys.has("d") || heldDirections.has("right")) dx += speed;
-      if (pressedKeys.has("arrowup") || pressedKeys.has("w") || heldDirections.has("up")) dy -= speed;
-      if (pressedKeys.has("arrowdown") || pressedKeys.has("s") || heldDirections.has("down")) dy += speed;
+      if (pressedKeys.has("arrowleft") || pressedKeys.has("a") || heldDirections.has("left")) dx -= PLAYER_SPEED;
+      if (pressedKeys.has("arrowright") || pressedKeys.has("d") || heldDirections.has("right")) dx += PLAYER_SPEED;
+      if (pressedKeys.has("arrowup") || pressedKeys.has("w") || heldDirections.has("up")) dy -= PLAYER_SPEED;
+      if (pressedKeys.has("arrowdown") || pressedKeys.has("s") || heldDirections.has("down")) dy += PLAYER_SPEED;
       updateCharacter(playerRig, dx, dy, this.time.now);
       if (dx || dy) move(dx, dy);
     }
@@ -188,7 +189,7 @@ export function createWorldController({
     },
     moveDirection(direction) {
       if (!active) return;
-      const amount = 30;
+      const amount = TOUCH_MOVE_STEP;
       const vectors = { up: [0, -amount], down: [0, amount], left: [-amount, 0], right: [amount, 0] };
       const [dx, dy] = vectors[direction] || [0, 0];
       move(dx, dy);

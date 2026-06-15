@@ -165,6 +165,13 @@ def test_touch_navigation_supports_press_and_hold_cleanup():
     assert "touch-action: none" in STYLES
 
 
+def test_world_movement_uses_reduced_consistent_speed():
+    assert "const PLAYER_SPEED = 1.8" in WORLD_JS
+    assert "const TOUCH_MOVE_STEP = 15" in WORLD_JS
+    assert "dx -= PLAYER_SPEED" in WORLD_JS
+    assert "const amount = TOUCH_MOVE_STEP" in WORLD_JS
+
+
 def test_generated_room_and_character_art_are_wired_with_fallbacks():
     assert "/game-static/assets/bedroom-agent.png" in (ROOT / "frontend/static/src/styles.css").read_text()
     assert "/game-static/assets/world-map-agent.png" in (ROOT / "frontend/static/src/world.js").read_text()
