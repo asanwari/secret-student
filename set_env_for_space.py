@@ -7,6 +7,8 @@ import secrets
 
 from huggingface_hub import HfApi
 
+from scripts.llamacpp_modal_config import load_deployment_config
+
 
 DEFAULT_SPACE = "asanwari/secret-student"
 DEFAULT_TEXT_MODEL_REF = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
@@ -24,6 +26,16 @@ def parse_args() -> argparse.Namespace:
         default="embedded_dual_llamacpp",
     )
     parser.add_argument("--base-url", default=os.getenv("LLM_BASE_URL", ""))
+    parser.add_argument(
+        "--modal-config",
+        default="",
+        help="YAML model config used by scripts/deploy_llamacpp_modal.py.",
+    )
+    parser.add_argument(
+        "--shared-inference-url",
+        default="",
+        help="Public Modal URL whose model routes come from --modal-config.",
+    )
     parser.add_argument(
         "--model",
         default=os.getenv("LLM_MODEL", DEFAULT_TEXT_MODEL_REF),
@@ -114,6 +126,25 @@ def secret_value(name: str, prompt: str, *, generate: bool = False, no_prompt: b
 
 
 def build_variables(args: argparse.Namespace) -> dict[str, str]:
+    text_route = None
+    vision_route = None
+    if args.modal_config:
+        if args.runtime != "external":
+            raise SystemExit("--modal-config requires --runtime external.")
+        if not args.shared_inference_url:
+            raise SystemExit("--shared-inference-url is required with --modal-config.")
+        deployment = load_deployment_config(args.modal_config)
+        roles = {model.role: model for model in deployment.models if model.role}
+        if "text" not in roles:
+            raise SystemExit("Modal config must contain one model with role: text.")
+        text_route = roles["text"]
+        vision_route = roles.get("vision")
+        args.model = text_route.model_ref
+        if vision_route is not None:
+            args.vision_model = vision_route.model_ref
+        else:
+            args.vision_model = text_route.model_ref
+
     variables = {
         "DATABASE_URL": args.database_url,
         "LLM_RUNTIME": args.runtime,
@@ -132,12 +163,21 @@ def build_variables(args: argparse.Namespace) -> dict[str, str]:
     }
 
     if args.runtime == "external":
-        if not args.base_url:
+        if args.modal_config:
+            shared_url = args.shared_inference_url.rstrip("/")
+            variables["LLM_BASE_URL"] = f"{shared_url}/{text_route.route}"
+            variables["VISION_LLM_BASE_URL"] = (
+                f"{shared_url}/{vision_route.route}"
+                if vision_route is not None
+                else variables["LLM_BASE_URL"]
+            )
+        elif not args.base_url:
             raise SystemExit("--base-url or LLM_BASE_URL is required for external runtime.")
-        variables["LLM_BASE_URL"] = args.base_url.rstrip("/")
-        variables["VISION_LLM_BASE_URL"] = (
-            args.vision_base_url or args.base_url
-        ).rstrip("/")
+        else:
+            variables["LLM_BASE_URL"] = args.base_url.rstrip("/")
+            variables["VISION_LLM_BASE_URL"] = (
+                args.vision_base_url or args.base_url
+            ).rstrip("/")
 
     if args.runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
         variables.update(
@@ -180,14 +220,18 @@ def build_secrets(args: argparse.Namespace) -> dict[str, str]:
         )
     }
     if args.runtime == "external":
-        configured["LLM_API_KEY"] = secret_value(
+        llm_api_key = secret_value(
             "LLM_API_KEY", "External LLM API key", no_prompt=args.no_prompt
         )
-        configured["VISION_LLM_API_KEY"] = secret_value(
-            "VISION_LLM_API_KEY",
-            "Vision LLM API key (leave blank to reuse LLM_API_KEY)",
-            no_prompt=args.no_prompt,
-        )
+        configured["LLM_API_KEY"] = llm_api_key
+        if args.modal_config:
+            configured["VISION_LLM_API_KEY"] = llm_api_key
+        else:
+            configured["VISION_LLM_API_KEY"] = secret_value(
+                "VISION_LLM_API_KEY",
+                "Vision LLM API key (leave blank to reuse LLM_API_KEY)",
+                no_prompt=args.no_prompt,
+            )
     if args.runtime in {"embedded_llamacpp", "embedded_dual_llamacpp"}:
         configured["LLAMA_CPP_API_KEY"] = secret_value(
             "LLAMA_CPP_API_KEY",

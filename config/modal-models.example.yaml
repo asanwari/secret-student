@@ -1,0 +1,38 @@
+app:
+  name: secret-student-models
+  gpu: L4
+  image: ghcr.io/ggml-org/llama.cpp:server-cuda-b9049
+  secret_name: secret-student-llm
+  timeout_minutes: 15
+  scaledown_minutes: 15
+  startup_timeout_seconds: 900
+  max_concurrent_inputs: 12
+
+defaults:
+  ctx_size: 8192
+  gpu_layers: 999
+  threads: 8
+  parallel: 1
+  extra_args: []
+
+models:
+  - route: text
+    role: text
+    model_ref: Qwen/Qwen3-8B-GGUF:Q4_K_M
+    ctx_size: 8192
+    parallel: 2
+
+  - route: vision
+    role: vision
+    model_ref: openbmb/MiniCPM-V-4_5-gguf:Q4_K_M
+    ctx_size: 4096
+    parallel: 1
+
+  # Additional models only need a unique route. The application roles above
+  # are used by set_env_for_space.py to configure Secret Student.
+  # - route: helper
+  #   model_ref: organization/model-name:Q4_K_M
+  #   ctx_size: 4096
+  #   extra_args:
+  #     - --flash-attn
+  #     - "on"

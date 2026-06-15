@@ -49,40 +49,65 @@ plays like a game rather than a default chatbot.
 ## Hackathon Submission
 
 Secret Student is submitted to **both** [Build Small](https://huggingface.co/build-small-hackathon)
-tracks:
+tracks. The required organization submission is
+**[build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student)**.
 
 > [!IMPORTANT]
-> **The working AI demo is the personal NVIDIA-backed Space:**
-> **[asanwari/secret-student](https://huggingface.co/spaces/asanwari/secret-student)**.
-> The required organization submission is
-> **[build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student)**,
-> but that organization Space cannot currently provision a GPU. It mirrors the
-> same source and serves as the official submission artifact; use the personal
-> Space above to test the complete Qwen3 plus MiniCPM-V experience.
+> The organization Space cannot currently provision GPU hardware, so the live
+> submission runs the game in a CPU-hosted Space and serves the current text and
+> vision models through a routed Modal GPU deployment. This is a hosting
+> workaround, not a model-size requirement: the same source can run both models
+> in one local llama.cpp deployment when GPU hardware is available.
+
+## Team
+
+- [asanwari](https://huggingface.co/asanwari)
 
 ## Judges: Inference and GPU Setup
 
 > [!CAUTION]
-> **Please read this before evaluating latency.** The organization submission is
-> currently configured as a CPU-hosted game that calls two Modal GPU endpoints.
-> Modal scales those endpoints down when idle, so the first lesson or handwritten
-> answer after an idle period can be **significantly slower while the GPU starts
-> and the GGUF model is loaded**. This is cold-start latency, not the normal warm
-> inference path. The application was deliberately built so the same Space can
-> instead run both models locally with only environment changes.
+> **Please read this before evaluating latency.** The current submission calls a
+> Modal-hosted llama.cpp deployment because the organization Space cannot
+> provision a GPU. Modal scales down when idle, so the first lesson or
+> handwritten-answer check after an idle period can be **significantly slower
+> while the GPU starts and the GGUF models load**. This is cold-start latency,
+> not the normal warm inference path.
 
-### Recommended Evaluation Setup: One L4 Space GPU
+The current model pair uses about **13 GB of VRAM** when loaded together. It can
+run on one GPU with at least 16 GB of VRAM, including:
+
+- NVIDIA GeForce RTX 4060 Ti 16 GB
+- NVIDIA GeForce RTX 4070 Ti SUPER 16 GB
+- NVIDIA GeForce RTX 4080 / 4080 SUPER 16 GB
+- NVIDIA GeForce RTX 3090 or RTX 4090 24 GB
+- AMD Radeon RX 7800 XT or 7900 GRE 16 GB
+- AMD Radeon RX 7900 XT 20 GB or 7900 XTX 24 GB
+
+### LLM Runtime Options
+
+`LLM_RUNTIME` selects the inference topology:
+
+```text
+mock                     deterministic local content with no model server
+external                 OpenAI-compatible external routes, including Modal
+embedded_llamacpp        one llama.cpp server beside the app
+embedded_dual_llamacpp   separate local text and vision llama.cpp servers
+```
+
+The submission currently uses `external`. The fully local GPU path is
+`embedded_dual_llamacpp`.
+
+### How to Test Completely Locally
 
 The Docker image already includes CUDA-enabled llama.cpp, and `app.runtime`
 already knows how to launch and health-check separate text and vision servers.
 No code changes or additional inference service are required.
 
-1. Assign an **NVIDIA L4** to the Space.
-2. In **Settings -> Variables and secrets**, replace the external runtime
-   configuration with the values below.
-3. Perform a **Factory Restart**. On the first boot, allow time for the model
-   downloads unless the GGUF files have already been placed in persistent
-   `/data/models` storage.
+1. Run on a machine, Docker host, or Space with a suitable GPU.
+2. In `.env` or **Settings -> Variables and secrets**, replace the external
+   runtime configuration with the values below.
+3. Restart the app. On the first boot, allow time for the model downloads unless
+   the GGUF files have already been placed in persistent `/data/models` storage.
 
 **Variables:**
 
@@ -105,15 +130,11 @@ VISION_LLAMA_CPP_GPU_LAYERS=999
 VISION_LLAMA_CPP_PORT=8002
 ```
 
-**Secrets:**
-
-Secrets are already set and don't need to be touched.
-
-If the Space does not have preloaded model files, **delete**
+If the runtime does not have preloaded model files, **delete**
 `LLAMA_CPP_MODEL_PATH`, `VISION_LLAMA_CPP_MODEL_PATH`, and
-`VISION_LLAMA_CPP_MMPROJ_PATH` from its variables. Their absence tells the
-runtime to download the configured GGUF repositories through llama.cpp. For
-faster restarts with persistent storage, preload the files and set:
+`VISION_LLAMA_CPP_MMPROJ_PATH`. Their absence tells llama.cpp to download the
+configured GGUF repositories. For faster restarts with persistent storage,
+preload the files and set:
 
 ```text
 LLAMA_CPP_MODEL_PATH=/data/models/qwen3-8b/Qwen3-8B-Q4_K_M.gguf
@@ -123,42 +144,41 @@ VISION_LLAMA_CPP_MMPROJ_PATH=/data/models/minicpm-v-4_5/mmproj-model-f16.gguf
 
 `LLM_BASE_URL`, `VISION_LLM_BASE_URL`, `LLM_API_KEY`, and
 `VISION_LLM_API_KEY` belong to the current Modal configuration. They are ignored
-by `embedded_dual_llamacpp` and may be removed when switching to local Space
+by `embedded_dual_llamacpp` and may be removed when switching to fully local
 inference.
 
 ### Configurability Built Into the Project
 
 | Area | Configuration |
 | --- | --- |
-| Inference topology | `mock`, one external endpoint, one embedded llama.cpp server, or independent embedded text and vision servers via `LLM_RUNTIME` |
+| Inference topology | `mock`, external OpenAI-compatible routes, one embedded llama.cpp server, or independent embedded text and vision servers via `LLM_RUNTIME` |
 | Model selection | Text and vision model IDs, GGUF repositories, local file paths, and the MiniCPM-V projector are independent environment variables |
-| Hosting | One Docker Space, two Modal endpoints, another OpenAI-compatible service, local NVIDIA Docker, or consumer hardware running llama.cpp |
+| Hosting | One Docker deployment, one routed multi-model Modal deployment, another OpenAI-compatible service, local NVIDIA Docker, or consumer hardware running llama.cpp |
 | Performance | Context size, GPU layers, CPU threads, parallel slots, ports, startup timeout, and arbitrary extra llama.cpp arguments are configurable independently |
 | Storage | Models may download from the Hub at startup or load from persistent `/data/models`; SQLite progress and traces can also use `/data` |
 | Educational flow | Quiz count, boss-question count, maximum mistakes, and model thinking mode are environment-controlled |
 | Observability | Traces can be disabled, written locally, or uploaded in redacted form to a public or private Hub dataset |
 
-The repository includes `set_env_for_space.py` to apply either topology in one
-command. Full model-preloading, Modal, Docker Compose, and trace instructions are
-in the [Technical Guide](docs/TECHNICAL.md).
+The repository includes `set_env_for_space.py` and `set_env_local.py` to apply
+external Modal routing in one command. Full model-preloading, Modal, Docker
+Compose, and trace instructions are in the [Technical Guide](docs/TECHNICAL.md).
 
 | Track | How Secret Student qualifies |
 | --- | --- |
-| **Backyard Adventure** | The [actual public demo](https://huggingface.co/spaces/asanwari/secret-student) runs as a Docker Space on a persistent NVIDIA GPU, with the application and both llama.cpp servers in one deployment. The organization-owned submission mirrors the same code but currently lacks permission to provision GPU hardware. |
+| **Backyard Adventure** | The organization submission mirrors the same source and currently uses Modal GPU inference only because organization GPU provisioning is unavailable. With GPU access, the app can run both llama.cpp servers in the same deployment. |
 | **Deploy to the Woods** | The text and vision models are small, quantized GGUFs that run on consumer hardware. Each model is well below the track's 32B-parameter ceiling. |
 
-The application can also separate the CPU-hosted game from inference. In
-`external` mode, independent OpenAI-compatible endpoints can be assigned to the
-text and vision roles through `LLM_BASE_URL` and `VISION_LLM_BASE_URL`. The
-included Modal llama.cpp server can therefore be deployed twice, once for
-Qwen3-8B and once for MiniCPM-V, if organization GPU access remains unavailable.
+The application can separate the CPU-hosted game from inference. In `external`
+mode, independent OpenAI-compatible routes are assigned through `LLM_BASE_URL`
+and `VISION_LLM_BASE_URL`. The included YAML-driven Modal deployment runs both
+models, plus optional additional models, in one GPU container and exposes each at
+its configured subroute.
 
 ### Submission Links
 
 | Artifact | Link |
 | --- | --- |
-| **Actual GPU demo** | **[Play the complete application at asanwari/secret-student](https://huggingface.co/spaces/asanwari/secret-student)** |
-| Organization submission | [build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student) - repository mirror; organization GPU provisioning is unavailable |
+| Organization submission | [build-small-hackathon/secret-student](https://huggingface.co/spaces/build-small-hackathon/secret-student) - CPU-hosted app with routed Modal GPU inference because organization GPU provisioning is unavailable |
 | Source code | [github.com/asanwari/secret-student](https://github.com/asanwari/secret-student) |
 | Codex development history | [Main commit history](https://github.com/asanwari/secret-student/commits/main/) and [`codex/*` branches](https://github.com/asanwari/secret-student/branches/all) |
 | Field notes | [I Built a Pokemon-Inspired AI School Game for My Niece](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6) |
@@ -184,6 +204,10 @@ Qwen3-8B and once for MiniCPM-V, if organization GPU access remains unavailable.
 6. **Enter headquarters.** Fight a villain by answering harder questions based
    on the lesson. Correct answers damage the boss; mistakes cost health.
 7. **Start another mission.** Return to the map and learn something new.
+
+<p align="center">
+  <img src="frontend/static/assets/world-map-agent.png" alt="Pixel-art Secret Student main map with school, home, and headquarters">
+</p>
 
 <table>
   <tr>
@@ -220,11 +244,12 @@ This split keeps the common path fast and leaves vision work to a model designed
 for it. Model repositories, files, ports, context sizes, and GPU layers are all
 environment-configurable; Qwen and MiniCPM-V are defaults, not hard dependencies.
 
-The default pair is comfortable on a 16 GB NVIDIA GPU with conservative context
-settings. Practical consumer options include the RTX 4060 Ti 16 GB, RTX 4070 Ti
-SUPER 16 GB, RTX 4080 16 GB, and RTX 3090/4090 24 GB. Partial CPU offload can
-reduce VRAM requirements at the cost of latency. The hosted demo uses NVIDIA GPU
-infrastructure for additional headroom.
+The default pair uses about 13 GB of VRAM when loaded together and is
+comfortable on a 16 GB GPU with conservative context settings. Practical
+consumer options include the NVIDIA RTX 4060 Ti 16 GB, RTX 4070 Ti SUPER 16 GB,
+RTX 4080 / 4080 SUPER 16 GB, RTX 3090 or RTX 4090 24 GB, AMD Radeon RX 7800 XT
+or 7900 GRE 16 GB, and AMD Radeon RX 7900 XT 20 GB or 7900 XTX 24 GB. Partial
+CPU offload can reduce VRAM requirements at the cost of latency.
 
 ## Reliable Generated Content
 
@@ -259,8 +284,8 @@ image payloads are replaced with hashes.
 
 | Sponsor | Role in the project |
 | --- | --- |
-| [![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Inference-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/) | NVIDIA GPU hardware runs the public dual-model Space and CUDA-accelerated llama.cpp. NVIDIA Nemotron 3 Nano Omni GGUF was also evaluated as a candidate for the unified text-and-vision deployment before the project adopted its current two-model architecture. |
-| [![Modal](https://img.shields.io/badge/Modal-Optional_GPU_Deployment-111111)](https://modal.com/) | The repository includes a configurable Modal deployment for an external OpenAI-compatible llama.cpp server with persistent model caching. |
+| [![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU_Inference-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/) | NVIDIA GPU hardware runs CUDA-accelerated llama.cpp for local or Modal-hosted inference. NVIDIA Nemotron 3 Nano Omni GGUF was also evaluated as a candidate for the unified text-and-vision deployment before the project adopted its current two-model architecture. |
+| [![Modal](https://img.shields.io/badge/Modal-Optional_GPU_Deployment-111111)](https://modal.com/) | The repository includes a YAML-driven multi-model Modal deployment with routed OpenAI-compatible llama.cpp servers and persistent model caching. |
 | [![OpenBMB](https://img.shields.io/badge/OpenBMB-MiniCPM--V-7c3aed)](https://huggingface.co/openbmb) | MiniCPM-V is the vision specialist used to read and grade handwritten answers. |
 | [![OpenAI](https://img.shields.io/badge/OpenAI-Codex_Assisted-000000?logo=openai&logoColor=white)](https://openai.com/codex/) | Codex was the coding collaborator throughout implementation, testing, responsive UI work, model infrastructure, and documentation. The evidence is visible in the public commits and `codex/*` branches. |
 
@@ -304,7 +329,6 @@ deployment, model preloading, tracing, API routes, and tests, see
 
 ## Project Links
 
-- [Live Hugging Face Space](https://huggingface.co/spaces/asanwari/secret-student)
 - [GitHub source and Codex-assisted history](https://github.com/asanwari/secret-student)
 - [Technical guide](docs/TECHNICAL.md)
 - [Medium field notes](https://medium.com/@asanwari/i-built-a-pokemon-inspired-ai-school-game-for-my-niece-986ad1df69f6)

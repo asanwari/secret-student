@@ -2,7 +2,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.env
+.env*
+!.env.example
 data/*.sqlite3
 data/avatars/
 debug_submissions/
@@ -10,3 +11,5 @@ debug_submissions/
 debug_traces/
 llm_debug_traces/
 artifacts/
+config/modal-models*.yaml
+!config/modal-models.example.yaml

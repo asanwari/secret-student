@@ -177,16 +177,65 @@ modal secret create secret-student-llm \
   HF_TOKEN=hf_your-token
 ```
 
-Deploy the included server:
+Copy the example configuration and edit the model list as needed:
 
 ```bash
+cp config/modal-models.example.yaml config/modal-models.yaml
+```
+
+Each model gets a unique `route`, a Hub GGUF `model_ref`, and optional
+llama.cpp overrides. Models marked with `role: text` and `role: vision` can be
+applied directly to a Space by `set_env_for_space.py`; additional routes remain
+available to other clients.
+
+Deploy every configured model in one Modal GPU container:
+
+```bash
+MODAL_LLAMA_CPP_CONFIG=config/modal-models.yaml \
 uv run --extra modal modal deploy scripts/deploy_llamacpp_modal.py
 ```
 
-The command prints the endpoint URL to use as `LLM_BASE_URL`. The script uses a
-pinned CUDA llama.cpp image, an NVIDIA L40S by default, and persistent caches.
-Override the model and GPU with `MODAL_LLAMA_CPP_MODEL_REF` and
-`MODAL_LLAMA_CPP_GPU`.
+The command prints a base URL for every route, such as `/text` and `/vision`.
+A small FastAPI proxy forwards each route to its own internal llama.cpp server
+and exposes aggregate status at `/health`. All servers share the configured
+GPU, API key, image, and persistent caches.
+
+Configure a CPU-hosted Space to use the routed models:
+
+```bash
+uv run python set_env_for_space.py \
+  --runtime external \
+  --modal-config config/modal-models.yaml \
+  --shared-inference-url https://your-deployment.modal.run
+```
+
+Smoke-test every configured route after deployment:
+
+```bash
+uv run python scripts/test_llamacpp_modal.py \
+  --config config/modal-models.yaml \
+  --base-url https://your-deployment.modal.run
+```
+
+The tester checks aggregate and per-model health, sends a short chat request to
+each route, and includes a tiny generated image for models with `role: vision`.
+It reads `LLM_API_KEY` from the repository `.env`; `--api-key` remains available
+as an explicit override.
+
+Configure the local `.env` to use the same routed deployment while preserving
+unrelated local settings:
+
+```bash
+uv run python set_env_local.py \
+  --modal-config config/modal-models.yaml \
+  --shared-inference-url https://your-deployment.modal.run
+```
+
+The helper reuses the existing `LLM_API_KEY` from `.env` for both model roles.
+
+For backwards compatibility, omitting `MODAL_LLAMA_CPP_CONFIG` and leaving
+`config/modal-models.yaml` absent starts one root-routed model using the legacy
+`MODAL_LLAMA_CPP_*` environment variables.
 
 ## Structured Generation and Repair
 
